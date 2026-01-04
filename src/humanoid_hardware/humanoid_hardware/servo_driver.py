@@ -26,23 +26,23 @@ class ServoDriverNode(Node):
         timeout = self.get_parameter('timeout').value
 
         # Joint to servo channel mapping (15 DOF)
-        # Maps joint names to servo channels (A-O for channels 1-15)
+        # Maps joint names to servo indices (0-14 for 15 servos)
         self.joint_to_servo = {
-            'head_pan_joint': 'A',           # Channel 1
-            'left_shoulder_pan_joint': 'B',  # Channel 2
-            'left_shoulder_pitch_joint': 'C',# Channel 3
-            'left_elbow_pitch_joint': 'D',   # Channel 4
-            'right_shoulder_pan_joint': 'E', # Channel 5
-            'right_shoulder_pitch_joint': 'F',# Channel 6
-            'right_elbow_pitch_joint': 'G',  # Channel 7
-            'left_hip_pan_joint': 'H',       # Channel 8
-            'left_hip_pitch_joint': 'I',     # Channel 9
-            'left_knee_pitch_joint': 'J',    # Channel 10
-            'left_ankle_pitch_joint': 'K',   # Channel 11
-            'right_hip_pan_joint': 'L',      # Channel 12
-            'right_hip_pitch_joint': 'M',    # Channel 13
-            'right_knee_pitch_joint': 'N',   # Channel 14
-            'right_ankle_pitch_joint': 'O',  # Channel 15
+            'head_pan_joint': 0,
+            'left_shoulder_pan_joint': 1,
+            'left_shoulder_pitch_joint': 2,
+            'left_elbow_pitch_joint': 3,
+            'right_shoulder_pan_joint': 4,
+            'right_shoulder_pitch_joint': 5,
+            'right_elbow_pitch_joint': 6,
+            'left_hip_pan_joint': 7,
+            'left_hip_pitch_joint': 8,
+            'left_knee_pitch_joint': 9,
+            'left_ankle_pitch_joint': 10,
+            'right_hip_pan_joint': 11,
+            'right_hip_pitch_joint': 12,
+            'right_knee_pitch_joint': 13,
+            'right_ankle_pitch_joint': 14,
         }
 
         # Store last known positions to avoid unnecessary commands
@@ -75,7 +75,7 @@ class ServoDriverNode(Node):
 
         self.get_logger().info('Servo driver node initialized and ready')
         self.get_logger().info(f'Listening to /joint_states topic')
-        self.get_logger().info(f'Controlling {len(self.joint_to_servo)} servos (A-O)')
+        self.get_logger().info(f'Controlling {len(self.joint_to_servo)} servos (indices 0-{len(self.joint_to_servo)-1})')
 
     def radians_to_servo_angle(self, radians):
         """
@@ -94,11 +94,16 @@ class ServoDriverNode(Node):
 
         return int(servo_angle)
 
-    def send_servo_command(self, servo_char, angle):
+    def send_servo_command(self, servo_index, angle, move_time=500):
         """
-        Send command to servo board.
-        Format: $<servo_char><angle:03d>#
-        Example: $A090# moves servo A to 90 degrees
+        Send command to servo board using documented protocol.
+        Format: #<index>P<position>T<time>!
+        Example: #000P1500T1000! moves servo 0 to 1500μs (90°) in 1000ms
+
+        Args:
+            servo_index: Servo ID (0-254)
+            angle: Servo angle in degrees (0-180)
+            move_time: Movement time in milliseconds (default 500ms)
         """
         if not self.serial_port or not self.serial_port.is_open:
             self.get_logger().warn('Serial port not open, cannot send command')
@@ -107,11 +112,20 @@ class ServoDriverNode(Node):
         # Ensure angle is in valid range
         angle = max(0, min(180, int(angle)))
 
-        # Format command
-        command = f'${servo_char}{angle:03d}#\n'
+        # Convert angle (0-180 degrees) to PWM pulse width (500-2500 microseconds)
+        # 0° = 500μs, 90° = 1500μs, 180° = 2500μs
+        pwm = int(500 + (angle / 180.0) * 2000)
+        pwm = max(500, min(2500, pwm))  # Clamp to valid range
+
+        # Ensure servo index and time are valid
+        servo_index = max(0, min(254, int(servo_index)))
+        move_time = max(0, min(9999, int(move_time)))
+
+        # Format command: #<index>P<position>T<time>!
+        command = f'#{servo_index:03d}P{pwm:04d}T{move_time:04d}!'
 
         try:
-            self.serial_port.write(command.encode('utf-8'))
+            self.serial_port.write(command.encode('ascii'))
             # self.get_logger().debug(f'Sent: {command}')
         except serial.SerialException as e:
             self.get_logger().error(f'Serial write error: {e}')
@@ -137,17 +151,17 @@ class ServoDriverNode(Node):
                     # Convert to servo angle
                     servo_angle = self.radians_to_servo_angle(position_rad)
 
-                    # Get servo channel
-                    servo_char = self.joint_to_servo[joint_name]
+                    # Get servo index
+                    servo_index = self.joint_to_servo[joint_name]
 
                     # Send command
-                    self.send_servo_command(servo_char, servo_angle)
+                    self.send_servo_command(servo_index, servo_angle)
 
                     # Update last position
                     self.last_positions[joint_name] = position_rad
 
                     self.get_logger().debug(
-                        f'{joint_name} -> Servo {servo_char}: {position_rad:.3f} rad = {servo_angle}°'
+                        f'{joint_name} -> Servo {servo_index}: {position_rad:.3f} rad = {servo_angle}°'
                     )
 
     def destroy_node(self):

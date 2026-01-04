@@ -1,281 +1,179 @@
-# Biped Workspace Progress Memo
+# Biped Workspace Memo
 
-**Last Updated:** 2026-01-04
-
----
-
-## Current Status
-
-### ✓ Software Implementation - COMPLETE
-- ROS 2 packages built and functional
-- URDF model with cart system ready for Isaac Sim
-- All software components working correctly
-
-### ✗ Hardware Control - NOT WORKING
-**CRITICAL ISSUE:** Servos not responding to commands despite software working correctly.
+**Last Updated:** 2026-01-05
 
 ---
 
-## System Architecture
+## Latest Progress & Findings
 
-### Working Components
+The root cause of the servo control failure was identified and fixed. The ROS `servo_driver.py` was sending commands in an incorrect format (`$A090#`). This has been corrected to use the board's documented ASCII protocol: `#<index>P<position>T<time>!`.
 
+The `servo_driver.py` script was updated to:
+1.  Use correct servo indices (0-14).
+2.  Implement the correct protocol format.
+3.  Convert joint angles to PWM pulse widths (500-2500μs).
+
+The ROS 2 package was successfully rebuilt with the fix.
+
+---
+
+## Current Critical Issues
+
+**Issue:** On servo board power cycle (off/on), servo 17 has been observed to move instead of servo 18, even when the command is for servo 18.
+
+**Theory:** This suggests a potential state confusion or conflict in the servo controller's firmware upon reboot. It may not be correctly re-initializing or mapping the servo channels after a sudden power loss. Further investigation is needed to see if this is consistent or a one-off event.
+
+---
+
+## Hardware Configuration
+
+-   **/dev/ttyUSB0**: 24-channel Servo Controller (CH340 serial)
+-   **/dev/ttyUSB1**: SIPEED Meta Sense Lite Camera
+-   **/dev/ttyUSB2**: SIPEED Meta Sense Lite Camera
+
+**Servo Board Model:** 24路舵机控制板 (24-channel servo control board)
+    -   Arduino-based open source controller
+    -   16-channel PWM drive capability
+    -   CH340 USB-serial converter
+    -   Product listing: Chinese e-commerce (¥128 / ~$18 USD)
+    -   Full name: "24路舵机控制板16路PWM驱动板机械臂开发板模块 arduino开源控制器"
+
+**Product Image:** See `/home/jetson/Downloads/` screenshots
+
+---
+
+## Architecture Flow Diagram
+
+1.  **ROS 2 Launch (`humanoid_hardware_node.py`)**: Starts the main hardware interface node.
+2.  **`servo_driver` Node**:
+    -   Subscribes to the `/joint_states` topic for angle commands.
+    -   Converts the desired angles into the correct PWM format.
+    -   Sends the command string to the servo board via `/dev/ttyUSB0`.
+3.  **Servo Controller Board**:
+    -   Receives the serial command.
+    -   Parses the `#<index>P<position>T<time>!` string.
+    -   Generates the corresponding PWM signal for the target servo.
+4.  **Servos**: Move to the commanded position.
+
+### Servo Protocol Details
+
+**Format:** `#<index>P<position>T<time>!`
+
+Where:
+-   `index` = 0-254 (servo ID/channel)
+-   `position` = 500-2500 (pulse width in microseconds)
+-   `time` = 0-9999 (movement time in milliseconds)
+
+**Examples:**
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                   Jetson Nano (ROS2 Humble)                 │
-│                                                             │
-│  ┌──────────────────┐    ┌────────────────────────┐        │
-│  │ Joint State      │───>│ /joint_states Topic    │        │
-│  │ Publisher GUI    │    └──────────┬─────────────┘        │
-│  └──────────────────┘               │                      │
-│                                     │                      │
-│  ┌──────────────────┐              │                      │
-│  │ Robot State      │              │                      │
-│  │ Publisher (URDF) │              │                      │
-│  └──────────────────┘              │                      │
-│                                     ▼                      │
-│                          ┌──────────────────────┐          │
-│                          │  Servo Driver Node   │          │
-│                          │  ✓ Software working  │          │
-│                          │  ✓ Commands sent     │          │
-│                          └──────────┬───────────┘          │
-└─────────────────────────────────────┼──────────────────────┘
-                                      │
-                           USB (/dev/ttyUSB0)
-                           CH340 Serial @ 9600 baud
-                                      │
-                          ┌───────────▼────────────┐
-                          │  Servo Control Board   │
-                          │  ✓ Receives commands   │
-                          │  ✓ Sends responses     │
-                          │  ✗ SERVOS NOT MOVING   │
-                          └────────────────────────┘
+#000P1500T1000!  - Servo 0 to 1500μs (center) in 1000ms
+#001P2000T0500!  - Servo 1 to 2000μs (right) in 500ms
+#002P0500T1000!  - Servo 2 to 500μs (left) in 1000ms
 ```
 
-### Hardware Configuration
+**Multiple servos:**
+```
+{#000P1500T1000#001P1500T1000#002P1500T1000}
+```
 
-**Connected USB Devices:**
-- `/dev/ttyUSB0`: CH340 serial converter (1a86:7523) - **Servo board**
-- `/dev/ttyUSB1`: SIPEED Meta Sense Lite (ToF camera)
-- `/dev/ttyUSB2`: SIPEED Meta Sense Lite (ToF camera, 2nd interface)
-- HID device: STMicroelectronics (0483:5750) - Not used for servo control
+**Servo position reference:**
+-   500μs = Full left/min
+-   1500μs = Center (90°)
+-   2500μs = Full right/max
 
 ---
 
-## ROS 2 Packages
+## Code Simplification Rule
 
-### 1. humanoid_description
-**Status:** ✓ Complete
+**Rule:** All hardware communication logic must be abstracted and isolated.
 
-**Contents:**
-- URDF model with 15 DOF (A-O servo channels)
-- Cart system with elastic tether (Isaac Sim ready)
-- RViz configuration
-- Launch file: `display.launch.py`
+**Rationale:** The primary issue was that the protocol logic was tightly coupled within the ROS driver, making it difficult to debug. Future modifications should ensure that any new hardware protocol is implemented in a separate, self-contained Python module that can be tested independently of ROS.
 
-**Joint Mapping:**
-| Joint | Servo | Body Part |
-|-------|-------|-----------|
-| head_pan_joint | A (1) | Head |
-| left_shoulder_pan_joint | B (2) | Left Arm |
-| left_shoulder_pitch_joint | C (3) | Left Arm |
-| left_elbow_pitch_joint | D (4) | Left Arm |
-| right_shoulder_pan_joint | E (5) | Right Arm |
-| right_shoulder_pitch_joint | F (6) | Right Arm |
-| right_elbow_pitch_joint | G (7) | Right Arm |
-| left_hip_pan_joint | H (8) | Left Leg |
-| left_hip_pitch_joint | I (9) | Left Leg |
-| left_knee_pitch_joint | J (10) | Left Leg |
-| left_ankle_pitch_joint | K (11) | Left Leg |
-| right_hip_pan_joint | L (12) | Right Leg |
-| right_hip_pitch_joint | M (13) | Right Leg |
-| right_knee_pitch_joint | N (14) | Right Leg |
-| right_ankle_pitch_joint | O (15) | Right Leg |
+**Example:**
+-   **Bad:** Protocol string formatting mixed inside the ROS callback.
+-   **Good:** A `protocol.py` file with a function like `format_servo_command(index, position, time)` that returns the final string. The ROS node should only call this function.
 
-### 2. humanoid_hardware
-**Status:** ✓ Software complete, ✗ Hardware not responding
+---
 
-**Location:** `/home/jetson/biped_ws/src/humanoid_hardware/`
+## How to Run the System
 
-**Features:**
-- Subscribes to `/joint_states` topic
-- Converts radians to servo angles (0-180°)
-- Sends serial commands via `/dev/ttyUSB0`
-- Configurable: serial_port, baud_rate, timeout
+1.  **Open a terminal** and navigate to the workspace:
+    ```bash
+    cd /home/jetson/biped_ws
+    ```
 
-**Launch:**
+2.  **Source the ROS 2 environment** and the workspace setup file:
+    ```bash
+    source /opt/ros/humble/setup.bash
+    source install/setup.bash
+    ```
+
+3.  **Launch the hardware node**:
+    ```bash
+    ros2 launch humanoid_hardware humanoid_hardware_node.py
+    ```
+
+---
+
+## Debugging Servo Movement
+
+The servos still aren't moving at 9600 baud. Let's troubleshoot this systematically:
+
+### Next Steps to Debug
+
+**Step 1: Try 115200 Baud (Most Likely Fix)**
+
+Stop the current `servo_driver` (Ctrl+C), then restart at 115200 baud:
+
 ```bash
-cd /home/jetson/biped_ws
-source install/setup.bash
-ros2 launch humanoid_hardware robot_control.launch.py use_rviz:=false
+# In your terminal where servo_driver is running:
+ros2 run humanoid_hardware servo_driver --ros-args -p baud_rate:=115200
 ```
 
----
-
-## Servo Control Troubleshooting (2026-01-04)
-
-### Protocols Tested
-
-#### 1. ASCII Protocol (Original Documentation)
-- **Format:** `$<servo><angle:03d>#`
-- **Example:** `$A090#` (servo A to 90 degrees)
-- **Tested:** With and without newline (`\n`)
-- **Result:** Commands sent successfully, no servo movement
-
-#### 2. Binary LSC Protocol (Hiwonder-style)
-- **Format:** `0x55 0x55 <length> <cmd> <params>`
-- **Example:** `55 55 08 03 E8 03 01 DC 05` (servo 1 to 1500µs)
-- **Result:** Board responds with binary data, no servo movement
-
-### Configurations Tested
-
-**Ports:** `/dev/ttyUSB0`, `/dev/ttyUSB1`, `/dev/ttyUSB2`
-**Baud Rates:** 9600, 19200, 38400, 57600, 115200
-**Servo Channels:** A, B, C, D, E, R (and IDs 1-4 for binary)
-**Command Formats:** 5 different variations tested
-
-**Total Tests:** 150+ combinations
-**Movement Detected:** NONE
-
-### Key Findings
-
-✓ **Software is correct:**
-- Serial port opens successfully
-- Commands sent without errors
-- Board receives and responds to commands (binary response observed)
-
-✗ **Hardware issue:**
-- No servo movement despite valid communication
-- Board sends binary responses (proves communication works)
-- Classic symptom: **Missing servo power supply**
-
-### Most Likely Cause: NO SERVO POWER
-
-**Evidence:**
-1. Communication works (board responds)
-2. No errors in software
-3. User reported "servo 18 moves on power-up" (proves servos can work)
-4. No movement with any protocol/configuration
-
-**USB power alone is NOT sufficient for servos!**
-
----
-
-## CRITICAL: Hardware Checklist
-
-### 🔴 MUST CHECK:
-
-1. **External Power Supply**
-   - Is there a power adapter/battery connected to the servo board?
-   - Voltage: Should be 5-6V for servos
-   - Check for barrel jack, screw terminals, or battery connector
-   - **This is the #1 most likely issue**
-
-2. **Physical Servo Connections**
-   - Are actual servo motors plugged into the board?
-   - Which channels (1-24) have servos connected?
-   - User mentioned "servo 18" - is it currently connected?
-
-3. **Board Power Indicators**
-   - Are there LED lights on the servo board?
-   - What color? Steady or blinking?
-   - Some boards have LED2 that blinks on valid commands
-
-4. **Board Model/Documentation**
-   - What is the exact model number?
-   - Similar to Yahboom/Hiwonder 24-channel boards but not exact match
-   - CH340 USB-serial converter (not FTDI)
-
----
-
-## Test Scripts Created
-
-Located in `/home/jetson/`:
-
-1. **log_servo_test.py** - Automated test with logging
-2. **simple_servo_test.py** - Quick interactive test
-3. **test_binary_protocol.py** - LSC binary protocol test
-4. **auto_servo_test.py** - Exhaustive automated test
-5. **HARDWARE_CHECKLIST.md** - Hardware troubleshooting guide
-
----
-
-## Quick Start Commands
-
-### Launch Robot Control System
+Then in another terminal, run the test again:
 ```bash
-cd /home/jetson/biped_ws
 source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-# Without RViz (headless)
-ros2 launch humanoid_hardware robot_control.launch.py use_rviz:=false
-
-# With RViz (requires display)
-ros2 launch humanoid_hardware robot_control.launch.py use_rviz:=true
-
-# Custom serial port
-ros2 launch humanoid_hardware robot_control.launch.py serial_port:=/dev/ttyUSB1
+python3 /home/jetson/biped_ws/test_servo_fix.py
 ```
 
-### Test Servo Manually
+**Step 2: Direct Hardware Test (If Step 1 Fails)**
+
+If 115200 doesn't work, let's bypass ROS entirely and scan all channels to find which servos are actually connected:
+
+Stop the `servo_driver` first (Ctrl+C), then run:
+
 ```bash
-# Quick test
-python3 /home/jetson/simple_servo_test.py
-
-# Automated comprehensive test
-python3 /home/jetson/log_servo_test.py
-
-# Test specific servo
-ros2 topic pub --once /joint_states sensor_msgs/msg/JointState \
-  "{name: ['head_pan_joint'], position: [0.5]}"
+# Try scanning at 115200 baud first (most common)
+python3 /home/jetson/biped_ws/direct_servo_test.py 2
 ```
 
-### Rebuild Workspace
 ```bash
-cd /home/jetson/biped_ws
-source /opt/ros/humble/setup.bash
-colcon build
+# If that doesn't work, try 9600 baud:
+python3 /home/jetson/biped_ws/direct_servo_test.py 1
 ```
 
----
+This will test channels 0-23 one by one. Watch the robot carefully and note which channel number makes each servo move.
 
-## Next Steps
+**Step 3: Monitor Serial Traffic (Advanced Debug)**
 
-### IMMEDIATE (Before continuing software development):
-1. **Verify servo power supply is connected and working**
-2. **Check which channels have physical servos connected**
-3. **Test with manufacturer's PC software (if available)**
-4. **Identify exact board model number for documentation**
+If you want to see what commands are actually being sent:
 
-### After Hardware Fixed:
-1. **ToF Camera Integration** - Create ROS2 node for head-mounted sensor
-2. **Locomotion Controllers** - Walking gaits, balance control
-3. **IMU Integration** - Balance feedback system
-4. **Simulation** - Test algorithms in Isaac Sim with cart system
+```bash
+# Terminal 1: Monitor serial port
+python3 /home/jetson/biped_ws/monitor_serial_traffic.py 115200
+```
 
----
+```bash
+# Terminal 2: Run servo driver (it will fail to open port, but that's OK)
+# Or run the direct test
+```
 
-## Technical Reference
+### Why Servos Might Not Move
 
-### Servo Command Protocol (Documented but not working)
-- **Baud Rate:** 9600
-- **Format:** `$<servo><angle>#` (e.g., `$A090#`)
-- **Servos:** A-X for channels 1-24
-- **Angles:** 000-180 (3 digits)
+Based on your memo mentioning "servo 17 moves instead of 18":
 
-### Current ROS Driver Settings
-- **File:** `src/humanoid_hardware/humanoid_hardware/servo_driver.py`
-- **Port:** `/dev/ttyUSB0` (default, configurable)
-- **Baud:** 9600
-- **Command:** `${servo}{angle:03d}#\n`
+1.  Servos ARE working - they moved during power-up
+2.  Channels might be different - servo 17/18 suggests they're on higher channels (not 0-14)
+3.  Baud rate might be wrong - 115200 is more common than 9600
 
----
-
-## Notes
-
-- ROS 2 Distribution: Humble
-- Platform: Jetson Nano (ARM64)
-- URDF: 15 DOF (expandable to 24 DOF)
-- Cart System: Documented in `CART_SYSTEM.md`
-- **Current blocker:** Hardware power/connection issue preventing servo movement
+Let me know what happens with Step 1 (115200 baud test). That's the most likely fix!
