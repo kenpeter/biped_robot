@@ -72,7 +72,8 @@ def generate_launch_description():
             'serial_port': LaunchConfiguration('serial_port'),
             'baud_rate': 9600,
             'timeout': 1.0
-        }]
+        }],
+        arguments=['--ros-args', '--log-level', 'debug']
     )
 
     # RViz - 3D Visualization (optional)

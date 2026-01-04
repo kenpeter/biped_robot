@@ -108,7 +108,7 @@ class ServoDriverNode(Node):
         angle = max(0, min(180, int(angle)))
 
         # Format command
-        command = f'${servo_char}{angle:03d}#'
+        command = f'${servo_char}{angle:03d}#\n'
 
         try:
             self.serial_port.write(command.encode('utf-8'))
@@ -160,15 +160,23 @@ class ServoDriverNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-
     try:
         node = ServoDriverNode()
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
+        # This allows the program to exit cleanly on Ctrl+C or from sys.exit()
         pass
     except Exception as e:
-        print(f'Error: {e}')
+        # Log any other unexpected exceptions
+        # We check if a logger exists, in case the error was before node init
+        try:
+            # Attempt to get a logger if one is available
+            logger = rclpy.logging.get_logger("servo_driver_main")
+            logger.fatal(f"Unhandled exception in servo_driver: {e}")
+        except Exception:
+            print(f"Unhandled exception in servo_driver main: {e}", file=sys.stderr)
     finally:
+        # Ensure rclpy is shut down
         if rclpy.ok():
             rclpy.shutdown()
 

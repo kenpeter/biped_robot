@@ -288,19 +288,14 @@
     </inertial>
   </link>
 
-  <!-- Elastic String Connection (Prismatic Joint) -->
-  <!-- Connects robot waist to cart, allows cart to slide back/forth -->
-  <joint name="cart_tether_joint" type="prismatic">
+  <!-- Elastic String Connection (Fixed) -->
+  <!-- Connects robot waist to cart - cart is passive support, not controlled -->
+  <joint name="cart_tether_joint" type="fixed">
     <parent link="base_link"/>
     <child link="cart_base_link"/>
     <!-- Position cart 10cm behind robot at waist level (base_link center = 0) -->
     <!-- Cart is lower than robot, so offset in Z to put it on ground level -->
     <origin xyz="-0.15 0 -0.65" rpy="0 0 0"/>
-    <axis xyz="1 0 0"/>
-    <!-- Allow cart to move: closer (robot stops suddenly) to farther (stretched) -->
-    <!-- Limits: 5cm closer to 25cm farther from rest position -->
-    <limit lower="-0.05" upper="0.25" effort="20" velocity="1.0"/>
-    <dynamics damping="5.0" friction="0.5"/>
   </joint>
 
   <!-- Electronics Platform (upper deck) -->
@@ -356,12 +351,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_fl_1_joint" type="continuous">
+  <joint name="wheel_fl_1_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_fl_1"/>
     <origin xyz="0.11 0.11 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_fl_2">
@@ -383,12 +376,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_fl_2_joint" type="continuous">
+  <joint name="wheel_fl_2_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_fl_2"/>
     <origin xyz="0.13 0.11 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_fl_3">
@@ -410,12 +401,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_fl_3_joint" type="continuous">
+  <joint name="wheel_fl_3_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_fl_3"/>
     <origin xyz="0.11 0.13 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_fl_4">
@@ -437,12 +426,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_fl_4_joint" type="continuous">
+  <joint name="wheel_fl_4_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_fl_4"/>
     <origin xyz="0.13 0.13 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <!-- Front Right Corner (4 wheels) -->
@@ -465,12 +452,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_fr_1_joint" type="continuous">
+  <joint name="wheel_fr_1_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_fr_1"/>
     <origin xyz="0.11 -0.11 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_fr_2">
@@ -492,12 +477,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_fr_2_joint" type="continuous">
+  <joint name="wheel_fr_2_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_fr_2"/>
     <origin xyz="0.13 -0.11 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_fr_3">
@@ -519,12 +502,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_fr_3_joint" type="continuous">
+  <joint name="wheel_fr_3_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_fr_3"/>
     <origin xyz="0.11 -0.13 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_fr_4">
@@ -546,12 +527,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_fr_4_joint" type="continuous">
+  <joint name="wheel_fr_4_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_fr_4"/>
     <origin xyz="0.13 -0.13 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <!-- Back Left Corner (4 wheels) -->
@@ -574,12 +553,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_bl_1_joint" type="continuous">
+  <joint name="wheel_bl_1_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_bl_1"/>
     <origin xyz="-0.11 0.11 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_bl_2">
@@ -601,12 +578,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_bl_2_joint" type="continuous">
+  <joint name="wheel_bl_2_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_bl_2"/>
     <origin xyz="-0.13 0.11 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_bl_3">
@@ -628,12 +603,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_bl_3_joint" type="continuous">
+  <joint name="wheel_bl_3_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_bl_3"/>
     <origin xyz="-0.11 0.13 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_bl_4">
@@ -655,12 +628,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_bl_4_joint" type="continuous">
+  <joint name="wheel_bl_4_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_bl_4"/>
     <origin xyz="-0.13 0.13 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <!-- Back Right Corner (4 wheels) -->
@@ -683,12 +654,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_br_1_joint" type="continuous">
+  <joint name="wheel_br_1_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_br_1"/>
     <origin xyz="-0.11 -0.11 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_br_2">
@@ -710,12 +679,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_br_2_joint" type="continuous">
+  <joint name="wheel_br_2_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_br_2"/>
     <origin xyz="-0.13 -0.11 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_br_3">
@@ -737,12 +704,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_br_3_joint" type="continuous">
+  <joint name="wheel_br_3_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_br_3"/>
     <origin xyz="-0.11 -0.13 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
   <link name="wheel_br_4">
@@ -764,12 +729,10 @@
       <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
     </inertial>
   </link>
-  <joint name="wheel_br_4_joint" type="continuous">
+  <joint name="wheel_br_4_joint" type="fixed">
     <parent link="cart_base_link"/>
     <child link="wheel_br_4"/>
     <origin xyz="-0.13 -0.13 -0.01" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-    <dynamics damping="0.1" friction="0.1"/>
   </joint>
 
 </robot>
