@@ -121,7 +121,62 @@ Where:
 
 ---
 
-## Latest Update (2026-01-05 21:17)
+## Latest Update (2026-01-05 22:00)
+
+### BREAKTHROUGH: BOARD HAS TWO PHYSICAL BUTTONS! 🔴🔴
+
+**CRITICAL DISCOVERY from servo_doc images:**
+
+The ZL-IS2 servo board has **TWO physical buttons** (marked in red on board):
+
+1. **执行按键 (Execution Button)** - Red labeled "执行按键"
+2. **编程按键 (Programming Button)** - Red labeled "编程按键"
+
+**Button Functions (from manual page 37):**
+
+**执行按键 (Execution Button):**
+- Short press in non-editing mode: Execute action once (beep once)
+- Long press (5 seconds, beeps 5 times): Execute actions continuously
+- Used to RUN/EXECUTE programmed servo actions
+
+**编程按键 (Programming Button):**
+- Long press (beep once): Enter editing mode
+- Used to PROGRAM/EDIT servo action sequences
+
+**WHY SERVOS DON'T MOVE:**
+- The board is likely in **programming/editing mode** instead of **execution mode**
+- In programming mode, the board accepts configuration but doesn't execute servo commands
+- PC software (Zide) automatically switches modes, but our Python scripts don't
+
+**TESTING RESULTS (2026-01-05 22:05):**
+- ✗ Ran servo test on channel 5 (positions: 2500, 500, 1500)
+- ✗ **NO MOVEMENT** - Servos still don't respond
+- Commands sent successfully (no errors)
+- Board still responding (serial connection works)
+
+**STATUS: BUTTONS MAY NOT HAVE BEEN PRESSED YET**
+- User may need to physically press the execution/programming buttons
+- Board might still be in wrong mode
+- OR: There's a different initialization sequence required
+
+**NEXT STEPS TO TRY:**
+1. **CRITICAL**: Physically locate and press the two buttons on the servo board
+   - Look for 执行按键 (Execution) and 编程按键 (Programming) buttons
+   - Try long-pressing programming button (should beep)
+   - Try pressing execution button
+2. Observe if LED patterns change when pressing buttons
+3. Test servo movement after each button press
+4. If buttons don't help: Capture what PC software sends using spy script
+
+**PC Software Behavior:**
+- On Windows PC: Drag slider → servos move immediately
+- Connection type: USB Type-C from board to PC
+- Software shows "HID Connected" (but device is actually serial/CH340)
+- Software likely sends mode-switch commands automatically
+
+---
+
+## Previous Update (2026-01-05 21:17)
 
 ### HID vs SERIAL INVESTIGATION ✓
 
