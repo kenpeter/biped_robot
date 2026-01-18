@@ -83,42 +83,61 @@ add_bracket("R_LowerArm", (0.020, 0.022, 0.055), (0, -0.105, 0.185))
 
 # ============ LEFT LEG ============
 ly = 0.038
+
+# Hip (Servo 1: Hip Roll)
 add_servo("L_Hip1", (0, ly, 0.205))
 add_bracket("L_Hip_Bracket", (0.038, 0.042, 0.022), (0, ly, 0.18))
+
+# Hip (Servo 2: Hip Pitch)
 add_servo("L_Hip2", (0, ly, 0.155), (0, math.pi/2, 0))
-add_bracket("L_Thigh_Upper", (0.028, 0.034, 0.048), (0, ly, 0.12))
-add_servo("L_Thigh_Servo", (0, ly, 0.085))
-add_bracket("L_Thigh_Lower", (0.028, 0.034, 0.038), (0, ly, 0.055))
+
+# Thigh (Connects Hip2 to Knee)
+add_bracket("L_Thigh_Structure", (0.028, 0.034, 0.09), (0, ly, 0.09))
+
+# Knee (Servo 3: Knee Pitch)
 add_servo("L_Knee", (0, ly, 0.028), (0, math.pi/2, 0))
-add_bracket("L_Shin_Upper", (0.026, 0.030, 0.048), (0, ly, -0.01))
-add_servo("L_Shin_Servo", (0, ly, -0.042))
-add_bracket("L_Shin_Lower", (0.026, 0.030, 0.038), (0, ly, -0.07))
+
+# Shin (Connects Knee to Ankle)
+add_bracket("L_Shin_Structure", (0.026, 0.030, 0.09), (0, ly, -0.035))
+
+# Ankle (Servo 4: Ankle Pitch)
 add_servo("L_Ankle", (0, ly, -0.095), (0, math.pi/2, 0))
+
+# Foot
 add_foot_with_holes("L_Foot", (0.012, ly, -0.115), aluminum)
 
 # ============ RIGHT LEG ============
 ry = -0.038
+
+# Hip (Servo 1: Hip Roll)
 add_servo("R_Hip1", (0, ry, 0.205))
 add_bracket("R_Hip_Bracket", (0.038, 0.042, 0.022), (0, ry, 0.18))
+
+# Hip (Servo 2: Hip Pitch)
 add_servo("R_Hip2", (0, ry, 0.155), (0, math.pi/2, 0))
-add_bracket("R_Thigh_Upper", (0.028, 0.034, 0.048), (0, ry, 0.12))
-add_servo("R_Thigh_Servo", (0, ry, 0.085))
-add_bracket("R_Thigh_Lower", (0.028, 0.034, 0.038), (0, ry, 0.055))
+
+# Thigh
+add_bracket("R_Thigh_Structure", (0.028, 0.034, 0.09), (0, ry, 0.09))
+
+# Knee (Servo 3: Knee Pitch)
 add_servo("R_Knee", (0, ry, 0.028), (0, math.pi/2, 0))
-add_bracket("R_Shin_Upper", (0.026, 0.030, 0.048), (0, ry, -0.01))
-add_servo("R_Shin_Servo", (0, ry, -0.042))
-add_bracket("R_Shin_Lower", (0.026, 0.030, 0.038), (0, ry, -0.07))
+
+# Shin
+add_bracket("R_Shin_Structure", (0.026, 0.030, 0.09), (0, ry, -0.035))
+
+# Ankle (Servo 4: Ankle Pitch)
 add_servo("R_Ankle", (0, ry, -0.095), (0, math.pi/2, 0))
+
+# Foot
 add_foot_with_holes("R_Foot", (0.012, ry, -0.115), aluminum)
 
-# Export to USD
-bpy.ops.wm.usd_export(
-    filepath='/home/jetson/biped_ws/src/humanoid_description/usd/humanoid.usda',
-    export_materials=True,
-    export_meshes=True,
-    export_textures=False,
-    selected_objects_only=False,
-    evaluation_mode='RENDER'
+# Export to GLTF (GLB) - Supported by Isaac Sim
+bpy.ops.export_scene.gltf(
+    filepath='/home/jetson/biped_ws/src/humanoid_description/usd/humanoid.glb',
+    export_format='GLB',
+    export_materials='EXPORT',
+    export_cameras=False,
+    export_lights=False
 )
 
-print("Exported to humanoid.usda!")
+print("Exported to humanoid.glb!")
