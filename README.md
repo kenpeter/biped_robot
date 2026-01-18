@@ -120,13 +120,27 @@ First, convert your `humanoid.glb` model into an articulated USD format. This sc
 
 ### 2. Run the Training Environment
 
-Once the articulated USD is created, you can launch the Isaac Sim training environment. This will open the Isaac Sim application and run a demo loop.
+Once the articulated USD is created, you can launch the Isaac Sim training environment. This will open the Isaac Sim application and run a demo loop with a PD controller.
 
 ```bash
 ./run_isaac.sh isaac_sim_training_env.py
 ```
 
-**Current Status:**
+**What to Expect:**
+-   The script will print progress messages as it initializes (5 steps total).
+-   Isaac Sim window will open showing the robot in a scene with a ground plane.
 -   The robot spawns 0.45m above the ground to prevent initial clipping.
--   It is a "floating base" robot (simulating a real robot not attached to a pole).
--   **Note:** The robot will likely **fall down** immediately. This is expected behavior! It is currently running a passive "standing" demo with a simple PD controller, which is not sufficient for bipedal balancing without a trained RL policy. The goal of the RL training (next steps) is to learn the policy to keep it upright.
+-   The orientation is automatically corrected (Blender Y-up → Isaac Sim Z-up).
+-   The demo runs for 2000 simulation steps with a PD controller trying to maintain balance.
+-   **Note:** The robot will likely **fall down** after a few seconds. This is expected! The simple PD controller is not sufficient for bipedal balancing. The goal of RL training (next steps) is to learn a policy that can maintain balance.
+
+**Recent Fixes (2026-01-18):**
+-   ✅ Fixed 90-degree rotation issue by applying -90° X-axis rotation at spawn time.
+-   ✅ Added detailed logging and error handling for better debugging.
+-   ✅ Improved initialization sequence to ensure USD references load correctly.
+-   ✅ Output is now unbuffered so you can see progress in real-time.
+
+**Troubleshooting:**
+-   If the robot appears sideways or upside down, check the orientation quaternion in `isaac_sim_training_env.py:45`.
+-   If the script hangs, check the Isaac Sim log file at `~/.local/share/ov/pkg/isaac_sim-*/logs/`.
+-   If the articulation fails to load, verify the USD file structure by opening `models/humanoid_articulated.usda` in a text editor.

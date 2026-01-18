@@ -12,7 +12,7 @@ def PhysicsScene "physicsScene"
 def Xform "Humanoid"
 {
     def Xform "Meshes" (
-        prepend references = @/home/kenpeter/work/biped_robot/src/humanoid_description/usd/humanoid.glb@
+        prepend references = @/home/kenpeter/work/biped_robot/models/humanoid.glb@
     )
     {
     }
@@ -46,8 +46,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "Z"
         rel physics:body0 = </Humanoid/base_link>
         rel physics:body1 = </Humanoid/Head_Servo_link>
-        float physics:lowerLimit = -1.5707964
-        float physics:upperLimit = 1.5707964
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "L_Shoulder1_link" (
@@ -71,8 +71,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/base_link>
         rel physics:body1 = </Humanoid/L_Shoulder1_link>
-        float physics:lowerLimit = -1.5707964
-        float physics:upperLimit = 1.5707964
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "L_Shoulder2_link" (
@@ -96,8 +96,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/L_Shoulder1_link>
         rel physics:body1 = </Humanoid/L_Shoulder2_link>
-        float physics:lowerLimit = -1.5707964
-        float physics:upperLimit = 1.5707964
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "L_Elbow_link" (
@@ -121,8 +121,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/L_Shoulder2_link>
         rel physics:body1 = </Humanoid/L_Elbow_link>
-        float physics:lowerLimit = -1.5707964
-        float physics:upperLimit = 1.5707964
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "R_Shoulder1_link" (
@@ -146,8 +146,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/base_link>
         rel physics:body1 = </Humanoid/R_Shoulder1_link>
-        float physics:lowerLimit = -1.5707964
-        float physics:upperLimit = 1.5707964
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "R_Shoulder2_link" (
@@ -171,8 +171,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/R_Shoulder1_link>
         rel physics:body1 = </Humanoid/R_Shoulder2_link>
-        float physics:lowerLimit = -1.5707964
-        float physics:upperLimit = 1.5707964
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "R_Elbow_link" (
@@ -196,8 +196,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/R_Shoulder2_link>
         rel physics:body1 = </Humanoid/R_Elbow_link>
-        float physics:lowerLimit = -1.5707964
-        float physics:upperLimit = 1.5707964
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "L_Hip1_link" (
@@ -221,8 +221,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/base_link>
         rel physics:body1 = </Humanoid/L_Hip1_link>
-        float physics:lowerLimit = -0.5235988
-        float physics:upperLimit = 0.5235988
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "L_Hip2_link" (
@@ -246,8 +246,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/L_Hip1_link>
         rel physics:body1 = </Humanoid/L_Hip2_link>
-        float physics:lowerLimit = -1.5707964
-        float physics:upperLimit = 1.5707964
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "L_Knee_link" (
@@ -271,8 +271,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/L_Hip2_link>
         rel physics:body1 = </Humanoid/L_Knee_link>
-        float physics:lowerLimit = -2.443461
-        float physics:upperLimit = 0
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "L_Ankle_link" (
@@ -296,8 +296,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/L_Knee_link>
         rel physics:body1 = </Humanoid/L_Ankle_link>
-        float physics:lowerLimit = -0.7853982
-        float physics:upperLimit = 0.7853982
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "L_Foot_link" (
@@ -321,8 +321,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/L_Ankle_link>
         rel physics:body1 = </Humanoid/L_Foot_link>
-        float physics:lowerLimit = -0.34906584
-        float physics:upperLimit = 0.34906584
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "R_Hip1_link" (
@@ -346,8 +346,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/base_link>
         rel physics:body1 = </Humanoid/R_Hip1_link>
-        float physics:lowerLimit = -0.5235988
-        float physics:upperLimit = 0.5235988
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "R_Hip2_link" (
@@ -371,8 +371,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/R_Hip1_link>
         rel physics:body1 = </Humanoid/R_Hip2_link>
-        float physics:lowerLimit = -1.5707964
-        float physics:upperLimit = 1.5707964
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "R_Knee_link" (
@@ -396,8 +396,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/R_Hip2_link>
         rel physics:body1 = </Humanoid/R_Knee_link>
-        float physics:lowerLimit = -2.443461
-        float physics:upperLimit = 0
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "R_Ankle_link" (
@@ -421,8 +421,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/R_Knee_link>
         rel physics:body1 = </Humanoid/R_Ankle_link>
-        float physics:lowerLimit = -0.7853982
-        float physics:upperLimit = 0.7853982
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 
     def Xform "R_Foot_link" (
@@ -446,8 +446,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/R_Ankle_link>
         rel physics:body1 = </Humanoid/R_Foot_link>
-        float physics:lowerLimit = -0.34906584
-        float physics:upperLimit = 0.34906584
+        float physics:lowerLimit = -3.1415927
+        float physics:upperLimit = 3.1415927
     }
 }
 

@@ -19,39 +19,40 @@ from omni.isaac.core.utils.prims import create_prim, define_prim
 import omni
 
 # Paths
-PROJECT_ROOT = "/home/kenpeter/work/biped_robot"
-GLB_PATH = os.path.join(PROJECT_ROOT, "src/humanoid_description/usd/humanoid.glb")
-USD_OUTPUT = os.path.join(PROJECT_ROOT, "src/humanoid_description/usd/humanoid_articulated.usda")
+PROJECT_ROOT = os.getcwd()
+GLB_PATH = os.path.join(PROJECT_ROOT, "models/humanoid.glb")
+USD_OUTPUT = os.path.join(PROJECT_ROOT, "models/humanoid_articulated.usda")
 
 # Joint configuration
 # Format: (joint_name, parent_link, child_link, axis, lower_limit, upper_limit, offset_xyz)
+# NOTE: All servos have 360° rotation capability
 JOINT_CONFIG = [
     # HEAD
-    ("head_joint", "Torso_Main", "Head_Servo", "Z", -90, 90, (0, 0, 0.08)),
+    ("head_joint", "Torso_Main", "Head_Servo", "Z", -180, 180, (0, 0, 0.08)),
 
     # LEFT ARM (y+ is left)
-    ("l_shoulder_pitch", "Torso_Main", "L_Shoulder1", "Y", -90, 90, (0, 0.06, 0.05)),
-    ("l_shoulder_roll", "L_Shoulder1", "L_Shoulder2", "X", -90, 90, (0, 0.04, 0)),
-    ("l_forearm_roll", "L_Shoulder2", "L_Elbow", "X", -90, 90, (0, 0, -0.08)),
+    ("l_shoulder_pitch", "Torso_Main", "L_Shoulder1", "Y", -180, 180, (0, 0.06, 0.05)),
+    ("l_shoulder_roll", "L_Shoulder1", "L_Shoulder2", "X", -180, 180, (0, 0.04, 0)),
+    ("l_forearm_roll", "L_Shoulder2", "L_Elbow", "X", -180, 180, (0, 0, -0.08)),
 
     # RIGHT ARM (y- is right)
-    ("r_shoulder_pitch", "Torso_Main", "R_Shoulder1", "Y", -90, 90, (0, -0.06, 0.05)),
-    ("r_shoulder_roll", "R_Shoulder1", "R_Shoulder2", "X", -90, 90, (0, -0.04, 0)),
-    ("r_forearm_roll", "R_Shoulder2", "R_Elbow", "X", -90, 90, (0, 0, -0.08)),
+    ("r_shoulder_pitch", "Torso_Main", "R_Shoulder1", "Y", -180, 180, (0, -0.06, 0.05)),
+    ("r_shoulder_roll", "R_Shoulder1", "R_Shoulder2", "X", -180, 180, (0, -0.04, 0)),
+    ("r_forearm_roll", "R_Shoulder2", "R_Elbow", "X", -180, 180, (0, 0, -0.08)),
 
     # LEFT LEG
-    ("l_hip_roll", "Torso_Bot_Plate", "L_Hip1", "X", -30, 30, (0, 0.04, -0.05)),
-    ("l_hip_pitch", "L_Hip1", "L_Hip2", "Y", -90, 90, (0, 0, -0.04)),
-    ("l_knee_pitch", "L_Hip2", "L_Knee", "Y", -140, 0, (0, 0, -0.10)),
-    ("l_ankle_pitch", "L_Knee", "L_Ankle", "Y", -45, 45, (0, 0, -0.10)),
-    ("l_foot_roll", "L_Ankle", "L_Foot", "X", -20, 20, (0, 0, -0.04)),
+    ("l_hip_roll", "Torso_Bot_Plate", "L_Hip1", "X", -180, 180, (0, 0.04, -0.05)),
+    ("l_hip_pitch", "L_Hip1", "L_Hip2", "Y", -180, 180, (0, 0, -0.04)),
+    ("l_knee_pitch", "L_Hip2", "L_Knee", "Y", -180, 180, (0, 0, -0.10)),
+    ("l_ankle_pitch", "L_Knee", "L_Ankle", "Y", -180, 180, (0, 0, -0.10)),
+    ("l_foot_roll", "L_Ankle", "L_Foot", "X", -180, 180, (0, 0, -0.04)),
 
     # RIGHT LEG
-    ("r_hip_roll", "Torso_Bot_Plate", "R_Hip1", "X", -30, 30, (0, -0.04, -0.05)),
-    ("r_hip_pitch", "R_Hip1", "R_Hip2", "Y", -90, 90, (0, 0, -0.04)),
-    ("r_knee_pitch", "R_Hip2", "R_Knee", "Y", -140, 0, (0, 0, -0.10)),
-    ("r_ankle_pitch", "R_Knee", "R_Ankle", "Y", -45, 45, (0, 0, -0.10)),
-    ("r_foot_roll", "R_Ankle", "R_Foot", "X", -20, 20, (0, 0, -0.04)),
+    ("r_hip_roll", "Torso_Bot_Plate", "R_Hip1", "X", -180, 180, (0, -0.04, -0.05)),
+    ("r_hip_pitch", "R_Hip1", "R_Hip2", "Y", -180, 180, (0, 0, -0.04)),
+    ("r_knee_pitch", "R_Hip2", "R_Knee", "Y", -180, 180, (0, 0, -0.10)),
+    ("r_ankle_pitch", "R_Knee", "R_Ankle", "Y", -180, 180, (0, 0, -0.10)),
+    ("r_foot_roll", "R_Ankle", "R_Foot", "X", -180, 180, (0, 0, -0.04)),
 ]
 
 def create_articulated_robot():
