@@ -54,5 +54,5 @@ bpy.context.active_object.data.energy = 3
 bpy.context.scene.render.engine = 'BLENDER_EEVEE'
 bpy.context.scene.render.resolution_x = 600
 bpy.context.scene.render.resolution_y = 600
-bpy.context.scene.render.filepath = '/home/jetson/biped_ws/simple_robot.png'
+bpy.context.scene.render.filepath = '/home/jetson/work/biped_ws/models/robot_render_simple.png'
 bpy.ops.render.render(write_still=True)

@@ -21,7 +21,7 @@ class ServoDriverNode(Node):
         # Load servo config
         self.servos = {}
         config = configparser.ConfigParser()
-        config.read('/home/jetson/biped_ws/ZideConfig.ini')
+        config.read('/home/jetson/work/biped_ws/ZideConfig.ini')
         for section in config.sections():
             if section.startswith('steer') and config.getboolean(section, 'enable', fallback=False):
                 sid = config.getint(section, 'id')

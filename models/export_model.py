@@ -133,7 +133,7 @@ add_foot_with_holes("R_Foot", (0.012, ry, -0.115), aluminum)
 
 # Export to GLTF (GLB) - Supported by Isaac Sim
 bpy.ops.export_scene.gltf(
-    filepath='/home/jetson/biped_ws/src/humanoid_description/usd/humanoid.glb',
+    filepath='/home/jetson/work/biped_ws/models/humanoid.glb',
     export_format='GLB',
     export_materials='EXPORT',
     export_cameras=False,
