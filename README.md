@@ -1,6 +1,31 @@
 # Biped Robot - ROS2 Workspace
 
-## Quick Start
+## Project Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. TRAIN (Isaac Sim)           2. DEPLOY (Jetson Orin Nano)    │
+│  ─────────────────────          ────────────────────────────    │
+│  humanoid_description/    →     humanoid_hardware/              │
+│  - USD robot model              - ROS 2 servo driver            │
+│  - Thermal camera sensor        - Real robot control            │
+│  - RL training environment      - Trained policy execution      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Folder Structure
+| Folder | Purpose |
+|--------|---------|
+| `humanoid_description` | Robot model (USD) for Isaac Sim training |
+| `humanoid_hardware` | ROS 2 driver to control real robot on Jetson |
+
+### Workflow Steps
+1. **Isaac Sim**: Load `humanoid_description/usd/humanoid.usda`
+2. **Train**: RL policy using Isaac Sim + thermal camera
+3. **Export**: Trained model (ONNX/TensorRT)
+4. **Deploy**: Run on Jetson with `humanoid_hardware` ROS 2 nodes
+
+## Quick Start (Real Robot)
 
 ```bash
 cd /home/jetson/biped_ws
@@ -19,6 +44,7 @@ ros2 launch humanoid_hardware robot_control.launch.py
 - **Servo Connection:** Servos are plugged **directly into the Rosmaster Board**.
   - **Port S1:** Head Servo (or Test Servo)
   - **Pinout:** Yellow=Signal, Red=VCC, Black=GND
+- **Thermal Camera (FLIR):** Mounted on head (Servo 0), connected to Jetson via USB.
 - **Driver:** Uses `Rosmaster_Lib` (not raw LSC commands).
 
 ## Test Scripts
@@ -61,6 +87,15 @@ RX    →   TX
 GND   →   GND
 VCC   →   (don't connect)
 ```
+
+## Visualization
+
+To view the full 3D robot model (geometry and materials) directly on the Jetson without external tools:
+
+```bash
+blender --python biped_ws/create_robot.py
+```
+This script rebuilds the robot from scratch inside Blender for immediate inspection.
 
 ## Hardware Verification
 To verify battery voltage and servo movement (Head + Body):

@@ -1,17 +1,23 @@
 # Biped Robot
 
+## Workflow
+1. **Train** in Isaac Sim using `humanoid_description/usd/humanoid.usda`
+2. **Deploy** to Jetson using `humanoid_hardware` ROS 2 nodes
+
 ## Hardware
 - Servo board: Hiwonder LSC-24 on /dev/ttyUSB1 @ 9600 baud
-- Head: channel 0
+- Head: channel 0 (with thermal camera mounted)
 - Left body: channels 1-7
 - Right body: channels 12-19
+- Thermal camera: FLIR, mounted on head (servo 0), USB to Jetson
 
-## Robot Model (15 Servos)
+## Robot Model (15 Servos + Thermal Camera)
 USD file: `src/humanoid_description/usd/humanoid.usda`
 
 ```
-HEAD (1):
+HEAD (1 servo + camera):
   head_joint            → left/right (Z)
+  thermal_camera        → FLIR (USB to Jetson)
 
 LEFT ARM (3):
   l_shoulder_pitch      → forward/backward (Y)

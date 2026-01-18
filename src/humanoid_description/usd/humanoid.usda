@@ -20,6 +20,7 @@ def Xform "humanoid"
 
         # HEAD - 1 servo (left/right rotation)
         # Axis: Z (yaw)
+        # Servo 0: Head rotation with thermal camera mounted
         def Xform "head_joint"
         {
             double3 xformOp:translate = (0, 0, 0.07)
@@ -29,6 +30,38 @@ def Xform "humanoid"
             {
                 double3 xformOp:scale = (0.035, 0.035, 0.035)
                 uniform token[] xformOpOrder = ["xformOp:scale"]
+            }
+
+            # Thermal/FLIR Camera mounted on head
+            # Hardware: Connected to Jetson via USB
+            def Xform "thermal_camera_mount"
+            {
+                double3 xformOp:translate = (0.04, 0, 0.01)
+                uniform token[] xformOpOrder = ["xformOp:translate"]
+
+                # Visible camera housing
+                def Cube "camera_body"
+                {
+                    double3 xformOp:scale = (0.025, 0.02, 0.015)
+                    uniform token[] xformOpOrder = ["xformOp:scale"]
+                }
+
+                # Camera lens (front cylinder-like shape)
+                def Cube "camera_lens"
+                {
+                    double3 xformOp:translate = (0.02, 0, 0)
+                    double3 xformOp:scale = (0.008, 0.012, 0.012)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+                }
+
+                def Camera "thermal_camera"
+                {
+                    float focalLength = 4.0
+                    float horizontalAperture = 6.4
+                    float verticalAperture = 4.8
+                    float2 clippingRange = (0.01, 100.0)
+                    token projection = "perspective"
+                }
             }
         }
 

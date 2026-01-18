@@ -1,3 +1,23 @@
+# Biped Robot Project
+
+## Project Workflow
+```
+TRAIN (Isaac Sim)  →  DEPLOY (Jetson Orin Nano)
+─────────────────     ─────────────────────────
+humanoid_description  humanoid_hardware
+├── USD robot model   ├── ROS 2 servo driver
+├── Thermal camera    ├── Trained policy runner
+└── RL environment    └── Real robot control
+```
+
+**Steps:**
+1. Load USD model in Isaac Sim: `src/humanoid_description/usd/humanoid.usda`
+2. Train RL policy (walking, balance, etc.) with thermal camera input
+3. Export trained model to ONNX/TensorRT
+4. Deploy on Jetson: run `humanoid_hardware` nodes with trained policy
+
+---
+
 # Servo Board Debugging - Status
 
 ## System Profile
@@ -16,6 +36,7 @@
 
 ## Hardware Configuration (Final)
 - **Head Servo:** Plug directly into Rosmaster Board **Port S1**. (Verified)
+- **Thermal Camera (FLIR):** Mounted on head (Servo 0), connected to Jetson via USB.
 - **Hiwonder LSC-24 (17-Servo Body):** Connected via CP2102 USB-to-TTL adapter on `/dev/ttyUSB1`.
     - **Status (2026-01-18):** **VERIFIED WORKING**.
     - **Issue:** Communication timeout (0 bytes received).
@@ -47,11 +68,17 @@
 ## Robot Model (USD for Isaac Sim)
 **File:** `/home/jetson/biped_ws/src/humanoid_description/usd/humanoid.usda`
 
-**15 Servos Total:**
+**To View Model:**
+```bash
+blender --python biped_ws/create_robot.py
+```
 
-| Part | Joint | Motion | Axis |
-|------|-------|--------|------|
+**15 Servos + 1 Thermal Camera:**
+
+| Part | Joint/Sensor | Motion/Function | Axis/Connection |
+|------|--------------|-----------------|-----------------|
 | HEAD | head_joint | left/right | Z (yaw) |
+| HEAD | thermal_camera | FLIR imaging | USB to Jetson |
 | L_ARM | l_shoulder_pitch | forward/backward | Y |
 | L_ARM | l_shoulder_roll | close/away body | X |
 | L_ARM | l_forearm_roll | close/away body | X |
