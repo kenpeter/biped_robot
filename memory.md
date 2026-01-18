@@ -44,6 +44,29 @@
 - **Hiwonder LSC-24 (Direct):** Could not establish communication via Jetson GPIO due to the UART lock.
 - **Hiwonder Manual Method:** Manual assumes Jetson Nano (original), not Orin Nano. The `/dev/ttyTHS1` port that works on Nano is locked on Orin Nano.
 
+## Robot Model (USD for Isaac Sim)
+**File:** `/home/jetson/biped_ws/src/humanoid_description/usd/humanoid.usda`
+
+**15 Servos Total:**
+
+| Part | Joint | Motion | Axis |
+|------|-------|--------|------|
+| HEAD | head_joint | left/right | Z (yaw) |
+| L_ARM | l_shoulder_pitch | forward/backward | Y |
+| L_ARM | l_shoulder_roll | close/away body | X |
+| L_ARM | l_forearm_roll | close/away body | X |
+| R_ARM | r_shoulder_pitch | forward/backward | Y |
+| R_ARM | r_shoulder_roll | close/away body | X |
+| R_ARM | r_forearm_roll | close/away body | X |
+| L_LEG | l_hip_roll | close/away body | X |
+| L_LEG | l_knee_pitch | forward/backward | Y |
+| L_LEG | l_ankle_pitch | forward/backward | Y |
+| L_LEG | l_foot_roll | close/away body | X |
+| R_LEG | r_hip_roll | close/away body | X |
+| R_LEG | r_knee_pitch | forward/backward | Y |
+| R_LEG | r_ankle_pitch | forward/backward | Y |
+| R_LEG | r_foot_roll | close/away body | X |
+
 ## Reference Documents
 - `/home/jetson/Downloads/lsc_24_dev/2. LSC-24 Controller Secondary Development/05 Jeson Development/01 Developer Guide/Jetson Development.pdf`
 - `/home/jetson/Downloads/lsc_24_dev/2. LSC-24 Controller Secondary Development/LSC Series Controller Communication Protocol V1.1.pdf`
