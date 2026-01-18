@@ -25,6 +25,13 @@
   5. Added detailed logging with 5-step progress indicators
 - **Files Modified:** `isaac_sim_training_env.py`
 
+**Problem 3: Isaac Lab DirectRLEnv for Multi-Robot Training - FAILED**
+- **Symptom:** `KeyError: 'robot'` when trying to access `self.scene.articulations["robot"]` within `humanoid_direct_env.py`. `self.scene.articulations` was consistently empty.
+- **Root Cause (Hypothesized):** Fundamental misunderstanding of how Isaac Lab's `InteractiveScene` registers custom USD articulations within a `DirectRLEnv`'s configuration (ArticulationCfg, AssetBaseCfg, UsdFileCfg interactions). The `ArticulationCfg` requires `init_state` and `spawn=UsdFileCfg(...)` to be configured in a specific way that was repeatedly misidentified.
+- **Attempts to Fix:** Numerous attempts to configure `ArticulationCfg`, `AssetBaseCfg`, and `UsdFileCfg` with `usd_path`, `init_state`, `position`, `orientation`, and `spawn` arguments in various combinations. Also tried explicit `prim_path` for `env_0`.
+- **Conclusion:** The current configuration approach for `DirectRLEnv` to spawn a custom USD articulation with an initial pose is incorrect or incompatible with the specific Isaac Lab version/setup. This feature is currently blocked.
+- **Files Modified:** `humanoid_direct_env.py`, `train_humanoid.py`
+
 **Additional Improvements:**
 - Added comprehensive error handling with traceback printing
 - Improved user feedback with clear progress messages
@@ -49,6 +56,8 @@ biped_robot/
 │
 ├── setup_isaac_sim_robot.py        # GLB → Articulated USD converter
 ├── isaac_sim_training_env.py       # RL training environment with PD demo
+├── humanoid_direct_env.py          # Isaac Lab DirectRLEnv for multi-robot training (currently blocked)
+├── train_humanoid.py               # RL training script using humanoid_direct_env.py (currently blocked)
 ├── run_isaac.sh                    # Wrapper to run Isaac Sim with IsaacLab env
 │
 ├── README.md                       # Project documentation
@@ -81,19 +90,20 @@ biped_ws/
 - **Position Range:** 500-2500 (maps to 0-180 degrees)
 
 ### Servo Channel Mapping
-```
-Channel 0:  head_joint
-Channels 1-7:  Left arm (shoulder pitch, shoulder roll, forearm roll)
-Channels 8-11: Left leg (hip roll, hip pitch, knee pitch, ankle pitch, foot roll)
-Channels 12-19: Right arm + Right leg (mirrored)
-```
+| Part | Joint | Connection |
+|------|-------|------------|
+| HEAD | head_joint | Rosmaster S1 |
+| HEAD | thermal_camera | USB |
+| BODY | (Various) | LSC-24 Board |
 
-### Robot Model (15 Servos + Thermal Camera)
-- **Head:** 1 servo (Z-axis rotation) + FLIR thermal camera (USB to Jetson)
-- **Left Arm:** 3 servos (shoulder pitch Y, shoulder roll X, forearm roll X)
-- **Right Arm:** 3 servos (mirrored)
-- **Left Leg:** 4 servos (hip roll X, hip pitch Y, knee pitch Y, ankle pitch Y, foot roll X)
-- **Right Leg:** 4 servos (mirrored)
+### Critical Notes
+- **UART Lock:** `/dev/ttyTHS1` on Orin Nano is locked by the kernel. Do not use for servo control.
+- **Power:** Ensure LSC-24 switch is ON (Blue LED).
+- **Wiring:** CP2102 Adapter RX -> Board TX, Adapter TX -> Board RX.
+
+### Verified Scripts
+- `verify_hardware.py`: Main diagnostic tool.
+- `test_rosmaster_s1.py`: Simple head test.
 
 ---
 
@@ -152,6 +162,15 @@ To convert Blender Y-up to Isaac Sim Z-up, apply -90° rotation around X-axis:
    - Provides RL observation/reward framework
    - Run: `./run_isaac.sh isaac_sim_training_env.py`
 
+3. **`humanoid_direct_env.py` (BLOCKED)**
+   - Intended Isaac Lab DirectRLEnv for multi-robot RL training.
+   - Currently blocked by `KeyError: 'robot'` during articulation registration.
+   - Requires further investigation into correct Isaac Lab asset configuration for custom USD robots.
+
+4. **`train_humanoid.py` (BLOCKED)**
+   - RL training script utilizing `humanoid_direct_env.py`.
+   - Currently blocked due to issues in `humanoid_direct_env.py`.
+
 ### Joint Configuration (from setup_isaac_sim_robot.py)
 Each joint defined as: `(joint_name, parent_link, child_link, axis, lower_limit, upper_limit, offset_xyz)`
 
@@ -168,8 +187,9 @@ Example:
 1. ✅ Fix 90-degree rotation issue
 2. ✅ Fix script execution and logging
 3. ✅ Update documentation
-4. 🔲 Test the updated training environment
-5. 🔲 Verify robot loads correctly with proper orientation
+4. ❌ Resolve Isaac Lab DirectRLEnv configuration for custom USD robot (BLOCKED)
+5. 🔲 Test the updated training environment (BLOCKED)
+6. 🔲 Verify robot loads correctly with proper orientation (BLOCKED)
 
 ### Medium Term
 1. 🔲 Implement RL training loop (PPO/SAC)
@@ -193,6 +213,7 @@ Example:
 - ✅ USD file had absolute paths (Fixed: changed to relative paths)
 
 ### Active
+- ⚠️ Isaac Lab `DirectRLEnv` `KeyError: 'robot'` for custom USD articulation. This is blocking multi-robot training. (Requires further investigation or alternative approach)
 - ⚠️ Robot falls immediately (Expected - needs RL training)
 - ⚠️ PD controller gains not tuned for this specific robot
 

@@ -46,6 +46,24 @@ cd ~/work/biped_ws
 ~/.local/share/ov/pkg/isaac_sim-2023.1.1/isaac-sim.sh --file models/humanoid.glb
 ```
 
+### 3. Massive Multi-Robot RL Training (BLOCKED)
+
+An attempt was made to set up the Isaac Lab `DirectRLEnv` for multi-robot reinforcement learning. However, this is currently blocked by a `KeyError: 'robot'` during articulation registration, indicating a configuration issue with custom USD assets in `humanoid_direct_env.py`.
+
+Please refer to `MEMORY.md` for a detailed log of the attempts and the current status of this issue.
+
+```bash
+# To attempt running the currently blocked training script:
+# (Note: This will likely result in a KeyError)
+# cd ~/work/biped_robot
+# ./run_isaac.sh train_humanoid.py
+```
+
+**What to Expect (if the issue is resolved):**
+-   Isaac Sim will launch and display 4096 instances of your humanoid robot.
+-   A training loop will start, and you will see messages about episodes, rewards, and policy updates in the console.
+-   Initially, the robots will flail or fall, but over time, they should learn to stand and perform desired behaviors.
+
 ---
 
 # SECTION B: JETSON (Robot)
