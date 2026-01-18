@@ -2,10 +2,11 @@ import bpy
 import math
 import os
 
-base_path = os.getcwd()
+# Detect workspace root (parent of models/)
+base_path = os.path.dirname(os.getcwd())
 
 # First run the robot creation
-exec(open(os.path.join(base_path, 'create_robot.py')).read().replace("bpy.ops.render.render(write_still=True)", "pass"))
+exec(open(os.path.join(base_path, 'models', 'create_robot.py')).read().replace("bpy.ops.render.render(write_still=True)", "pass"))
 
 # Remove camera, lights, ground for USD export (Isaac Sim will have its own)
 for obj in bpy.data.objects:
@@ -26,6 +27,6 @@ bpy.ops.wm.usd_export(
 )
 
 # Also save Blender file
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(base_path, 'humanoid_robot.blend'))
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(base_path, 'models', 'humanoid_robot.blend'))
 
 print("Exported to USD and saved Blender file!")

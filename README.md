@@ -1,116 +1,108 @@
 # Biped Robot - ROS2 Workspace
 
+> **Note:** The Jetson directory structure is totally different from the Desktop environment.
+> - **Desktop:** Used for Isaac Sim, Training, and Development.
+> - **Jetson:** Used for Deployment, Hardware Control, and Inference.
+
 ## Project Workflow
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  1. TRAIN (Isaac Sim)           2. DEPLOY (Jetson Orin Nano)    │
+│  1. DESKTOP (Isaac Sim)         2. JETSON (Orin Nano)           │
 │  ─────────────────────          ────────────────────────────    │
 │  humanoid_description/    →     humanoid_hardware/              │
 │  - USD robot model              - ROS 2 servo driver            │
-│  - Thermal camera sensor        - Real robot control            │
-│  - RL training environment      - Trained policy execution      │
+│  - Training Environment         - Real robot control            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Folder Structure
-| Folder | Purpose |
-|--------|---------|
-| `humanoid_description` | Robot model (USD) for Isaac Sim training |
-| `humanoid_hardware` | ROS 2 driver to control real robot on Jetson |
+---
 
-### Workflow Steps
-1. **Isaac Sim**: Load `humanoid_description/usd/humanoid.usda`
-2. **Train**: RL policy using Isaac Sim + thermal camera
-3. **Export**: Trained model (ONNX/TensorRT)
-4. **Deploy**: Run on Jetson with `humanoid_hardware` ROS 2 nodes
+# SECTION A: DESKTOP (Simulation)
 
-## Quick Start (Real Robot)
+**Goal:** Run physics simulation and train the policy.
+**Working Directory:** `~/work/biped_ws`
+
+### 1. Visualization & Model Editing
+To view the full 3D robot model (geometry and materials) or edit the structure:
 
 ```bash
-cd /home/jetson/biped_ws
+# Navigate to workspace
+cd ~/work/biped_ws
+
+# View in Blender
+blender --python models/create_robot.py
+```
+
+### 2. Run Isaac Sim
+Launch Isaac Sim and load the `humanoid.glb` model.
+
+```bash
+# 1. Navigate to workspace
+cd ~/work/biped_ws
+
+# 2. Run Isaac Sim (Check your specific install path)
+# Common path example:
+~/.local/share/ov/pkg/isaac_sim-2023.1.1/isaac-sim.sh --file models/humanoid.glb
+```
+
+---
+
+# SECTION B: JETSON (Robot)
+
+**Goal:** Control the physical hardware using the trained policy or test scripts.
+**Working Directory:** `/home/jetson/work/biped_ws`
+
+### 1. Hardware Configuration
+- **Control Board:** Yahboom Rosmaster (Green/Black Board)
+- **Port:** `/dev/ttyUSB0` (Direct USB connection)
+- **Servo Config:**
+  - **Port S1:** Head/Test Servo
+  - **Pins 1-19:** Body Servos (via CP2102 adapter on `/dev/ttyUSB1` if applicable, or direct)
+  
+*Note: See `memory.md` for detailed pinouts.*
+
+### 2. Quick Start (Real Robot)
+```bash
+cd /home/jetson/work/biped_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
+
+# Launch the hardware driver
 ros2 launch humanoid_hardware robot_control.launch.py
 ```
 
-## Hardware Configuration (Updated)
-
-**Critical Change:** The direct Jetson GPIO connection to the Hiwonder board was unreliable due to UART port mapping issues on the Orin Nano.
-
-**Current Setup:**
-- **Control Board:** Yahboom Rosmaster (Green/Black Board)
-- **Connection:** USB Cable to Jetson (`/dev/ttyUSB0`)
-- **Servo Connection:** Servos are plugged **directly into the Rosmaster Board**.
-  - **Port S1:** Head Servo (or Test Servo)
-  - **Pinout:** Yellow=Signal, Red=VCC, Black=GND
-- **Thermal Camera (FLIR):** Mounted on head (Servo 0), connected to Jetson via USB.
-- **Driver:** Uses `Rosmaster_Lib` (not raw LSC commands).
-
-## Test Scripts
-
-### New Method (Rosmaster Direct)
-Use this to test servos plugged into the Rosmaster board (S1, S2, etc):
+### 3. Test Scripts
+**Method 1: Rosmaster Direct (Head/S1)**
 ```bash
 sudo python3 /home/jetson/test_rosmaster_s1.py
 ```
 
-### Hiwonder LSC-24 (17-Servo Body)
-**Driver:** Custom ROS 2 node (`servo_driver.py`) communicating via USB-to-TTL.
-
-**Hardware Setup (Critical):**
-1.  Use a **CP2102** or **CH340** USB-to-TTL adapter.
-2.  Connect to Jetson USB port (usually appears as `/dev/ttyUSB1`).
-3.  **Wiring:**
-    -   **Adapter TX** $\rightarrow$ **Board RX**
-    -   **Adapter RX** $\rightarrow$ **Board TX**
-    -   **Adapter GND** $\rightarrow$ **Board GND**
-4.  **Power:** Ensure LSC-24 board switch is ON (Blue LED active).
-
-**Troubleshooting:**
--   **No Board Response (Timeout):**
-    -   Swap **TX** and **RX** wires on the Hiwonder board.
-    -   Check if the **Blue LED** on the board is ON.
--   **Specific Servo/Port Not Moving:**
-    -   **Reseat the Plug:** If a port seems "dead", unplug and replug the servo firmly. Use `test_sweep_ports.py` to confirm.
-    -   **Wrong Port:** You might be commanding Port 0 but plugged into Port 1.
-    -   **Orientation:** Yellow wire must face the **Inside** (towards the chip).
-
-The Hiwonder manual targets original Jetson Nano, not Orin Nano. On Orin Nano (JetPack 6), `/dev/ttyTHS1` is locked by the kernel and cannot be easily enabled via `jetson-io`.
-
-**Solution:** Use CP2102 USB-to-TTL adapter
-```
-CP2102    LSC-24
-───────────────
-TX    →   RX
-RX    →   TX
-GND   →   GND
-VCC   →   (don't connect)
-```
-
-## Visualization
-
-To view the full 3D robot model (geometry and materials) directly on the Jetson without external tools:
-
-```bash
-blender --python biped_ws/create_robot.py
-```
-This script rebuilds the robot from scratch inside Blender for immediate inspection.
-
-## Hardware Verification
-To verify battery voltage and servo movement (Head + Body):
+**Method 2: Full Hardware Verification**
+Checks battery, servo connection, and centers all servos.
 ```bash
 python3 verify_hardware.py
 ```
-This script checks the connection, reads voltage, centers all servos, and performs a small wiggle test.
 
-## Build
-
+### 4. Build Workspace
+On the Jetson, you must build the packages to generate the ROS 2 interfaces.
 ```bash
 colcon build --packages-select humanoid_hardware
+source install/setup.bash
 ```
 
-## Setting Up for Isaac Sim
+---
+
+## Troubleshooting (Jetson)
+
+**Hardware Issues:**
+- **No Board Response:** Check if `/dev/ttyUSB0` or `/dev/ttyUSB1` exists.
+- **Servos Not Moving:** Check battery voltage (should be > 7.4V) and switch on the board.
+- **UART/Serial Errors:** The Orin Nano has locked UART ports (`/dev/ttyTHS1`). Use USB adapters or the Rosmaster USB port.
+
+---
+
+## Setting Up for Isaac Sim (Desktop)
 
 To set up and train the biped robot in Isaac Sim, use the provided `run_isaac.sh` wrapper script. This script manages the necessary conda environment activation and interfaces with IsaacLab.
 
@@ -124,7 +116,7 @@ First, convert your `humanoid.glb` model into an articulated USD format. This sc
 ```bash
 ./run_isaac.sh setup_isaac_sim_robot.py
 ```
-*Output: `src/humanoid_description/usd/humanoid_articulated.usda`*
+*Output: `models/humanoid_articulated.usda`*
 
 ### 2. Run the Training Environment
 
@@ -138,5 +130,3 @@ Once the articulated USD is created, you can launch the Isaac Sim training envir
 -   The robot spawns 0.45m above the ground to prevent initial clipping.
 -   It is a "floating base" robot (simulating a real robot not attached to a pole).
 -   **Note:** The robot will likely **fall down** immediately. This is expected behavior! It is currently running a passive "standing" demo with a simple PD controller, which is not sufficient for bipedal balancing without a trained RL policy. The goal of the RL training (next steps) is to learn the policy to keep it upright.
-
-## Project Workflow
