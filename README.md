@@ -109,3 +109,34 @@ This script checks the connection, reads voltage, centers all servos, and perfor
 ```bash
 colcon build --packages-select humanoid_hardware
 ```
+
+## Setting Up for Isaac Sim
+
+To set up and train the biped robot in Isaac Sim, use the provided `run_isaac.sh` wrapper script. This script manages the necessary conda environment activation and interfaces with IsaacLab.
+
+### 1. Convert GLB to Articulated USD
+
+First, convert your `humanoid.glb` model into an articulated USD format. This script has been updated to:
+-   **Add Structural Offsets:** Expands the robot parts from the origin so they form a proper humanoid shape.
+-   **Fix Joint Hierarchy:** Correctly links parents and children for the kinematic chain.
+-   **Apply Physics:** Adds mass, rigid body, and collision APIs.
+
+```bash
+./run_isaac.sh setup_isaac_sim_robot.py
+```
+*Output: `src/humanoid_description/usd/humanoid_articulated.usda`*
+
+### 2. Run the Training Environment
+
+Once the articulated USD is created, you can launch the Isaac Sim training environment. This will open the Isaac Sim application and run a demo loop.
+
+```bash
+./run_isaac.sh isaac_sim_training_env.py
+```
+
+**Current Status:**
+-   The robot spawns 0.45m above the ground to prevent initial clipping.
+-   It is a "floating base" robot (simulating a real robot not attached to a pole).
+-   **Note:** The robot will likely **fall down** immediately. This is expected behavior! It is currently running a passive "standing" demo with a simple PD controller, which is not sufficient for bipedal balancing without a trained RL policy. The goal of the RL training (next steps) is to learn the policy to keep it upright.
+
+## Project Workflow
