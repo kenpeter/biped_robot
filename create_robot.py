@@ -176,4 +176,4 @@ bpy.context.scene.render.resolution_y = 800
 bpy.context.scene.render.filepath = '/home/jetson/biped_ws/robot_render.png'
 
 bpy.ops.render.render(write_still=True)
-print("Render saved!")
+print("Render saved to robot_render.png!")
