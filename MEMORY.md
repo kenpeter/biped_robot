@@ -2,29 +2,67 @@
 
 ## Current Status (2026-01-19)
 
-**Robot visible:** ✅ YES - colored cubes rendering correctly
-**Joints recognized:** ✅ YES - 17 DOFs detected
-**Joints moving:** ✅ YES - all joints responding to commands
+**Progress:** Robot structure created but parts snap together
 
-**✅ FIXED:** Mesh-binding issue resolved by embedding geometry directly in USD
+**✅ Fixed (2026-01-19):**
+1. Flat hierarchy → Fixed: Links now properly nested (parent-child)
+2. Rigid body errors → Fixed: Added XformStack reset for nested bodies
+3. Critical errors eliminated → Robot loads and simulates
+
+**⚠️ Remaining Problem:**
+- "Disjointed body transforms" warnings for elbows, knees, ankles
+- Robot parts snap together at torso location
+- Only 1-2 cubes visible instead of 11 body parts
+- Need to add joint localPos0/localPos1 attributes
 
 ---
 
-## Recent Fix: USD Mesh-Binding Issue (2026-01-19)
+## Recent Fixes (2026-01-19)
 
-### Problem
-Robot loaded but joints didn't move visually. Root cause: GLB meshes were referenced but not bound to physics links.
+### Fix 1: Hierarchical Structure
+- **File:** `setup_isaac_sim_robot.py`
+- **Line:** ~68-72
+- **Change:** Added proper parent-child nesting and XformStack reset
+- **Result:** Robot has correct hierarchical structure
 
-### Solution
-Completely rewrote `setup_isaac_sim_robot.py` to:
-1. Remove GLB reference entirely
-2. Create embedded visible geometry using `UsdGeom.Cube` primitives
-3. Color-code body parts (RED torso, YELLOW head, GREEN/BLUE limbs)
-4. Apply Blender Y-up → Isaac Z-up rotation fix
-5. Set correct drive parameters (stiffness=0, damping=1 for effort control)
+### Fix 2: Embedded Geometry
+- **File:** `setup_isaac_sim_robot.py`
+- **Change:** Created visible cubes directly in USD (no GLB reference)
+- **Result:** Robot renders as colored cubes (RED torso, YELLOW head, GREEN/BLUE limbs)
 
-### Result
-Robot now appears with colored cubes and all joints move correctly in Isaac Sim.
+### Fix 3: Joint Configuration
+- **File:** `models/humanoid_articulated.usda`
+- **Change:** Regenerated with correct drive parameters
+- **Result:** All 11 joints recognized by ArticulationView
+
+### Still Broken: Joint Local Positions
+- **Problem:** Joints don't define attachment points (localPos0/localPos1)
+- **Symptom:** "Disjointed body transforms" warnings
+- **Result:** All body parts snap together at torso location
+- **Fix needed:** Add `physics:localPos0` and `physics:localPos1` to each joint
+
+---
+
+## USD Joint Structure
+
+Current (broken):
+```
+def PhysicsRevoluteJoint "l_shoulder_pitch" (
+    rel physics:body0 = </Humanoid/torso>
+    rel physics:body1 = </Humanoid/left_upper_arm>
+    # Missing: localPos0 and localPos1!
+)
+```
+
+Needed (fixed):
+```
+def PhysicsRevoluteJoint "l_shoulder_pitch" (
+    rel physics:body0 = </Humanoid/torso>
+    rel physics:body1 = </Humanoid/left_upper_arm>
+    double3 physics:localPos0 = (0, 0.15, 0)    # Shoulder position on torso
+    double3 physics:localPos1 = (0, -0.15, 0)   # Shoulder position on arm
+)
+```
 
 ---
 
@@ -76,7 +114,10 @@ biped_robot/
 ```bash
 # Desktop - Isaac Sim
 ./run_isaac.sh setup_isaac_sim_robot.py      # Generate USD with embedded geometry
-./run_isaac.sh test_humanoid_visible.py      # Test robot visibility & movement
+./run_isaac.sh test_humanoid_visible.py      # Test robot (GUI mode, non-headless)
+
+# Check USD structure
+head -50 models/humanoid_articulated.usda    # View generated USD
 
 # Jetson - Hardware Control
 python3 verify_hardware.py                   # Test servos
@@ -91,10 +132,15 @@ colcon build --packages-select humanoid_hardware
 ## Known Issues
 
 **Active:**
-- ⚠️ Isaac Lab DirectRLEnv configuration (WIP - need to configure asset registration)
+- ⚠️ **Joint local positions missing** (CRITICAL): Parts snap together
+  - Symptoms: "Disjointed body transforms" warnings
+  - Fix: Add physics:localPos0/localPos1 to each joint
+- ⚠️ Isaac Lab DirectRLEnv configuration (WIP)
 
 **Resolved:**
-- ✅ Mesh-binding issue (2026-01-19) - Fixed with embedded USD geometry
+- ✅ Hierarchical structure (2026-01-19) - Fixed parent-child nesting
+- ✅ Rigid body errors (2026-01-19) - Added XformStack reset
+- ✅ Mesh-binding issue (2026-01-19) - Embedded USD geometry
 - ✅ Joint drive parameters (2026-01-19) - Set stiffness=0 for effort control
 - ✅ Rotation issue (2026-01-18) - Applied Blender Y-up → Isaac Z-up conversion
 
@@ -102,14 +148,19 @@ colcon build --packages-select humanoid_hardware
 
 ## Next Steps
 
-1. **Resume RL Training Development:**
-   - Fix DirectRLEnv asset registration
-   - Configure multi-robot training environment
-   - Train walking policy
+1. **Fix joint local positions:**
+   - Add `physics:localPos0` to define attachment point on parent body
+   - Add `physics:localPos1` to define attachment point on child body
+   - Values should match the translation offsets of child links
 
-2. **Hardware Deployment:**
-   - Export trained policy to ONNX/TensorRT
-   - Deploy to Jetson Orin Nano with ROS 2
+2. **Test robot movement:**
+   - Verify all 11 body parts spread out correctly
+   - Check joints move without snapping
+
+3. **Resume RL training:**
+   - Fix DirectRLEnv asset registration
+   - Configure multi-robot training
+   - Train walking policy
 
 ---
 

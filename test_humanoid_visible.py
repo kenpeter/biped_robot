@@ -17,6 +17,7 @@ simulation_app = SimulationApp({"headless": False})
 
 from omni.isaac.core import World
 from omni.isaac.core.articulations import Articulation
+from omni.isaac.core.utils.stage import add_reference_to_stage
 
 # Create world
 print("\nCreating world...")
@@ -27,12 +28,15 @@ world.scene.add_default_ground_plane()
 robot_usd_path = os.path.join(os.getcwd(), "models/humanoid_articulated.usda")
 print(f"Loading robot from: {robot_usd_path}")
 
-# Add robot to scene
+# Add USD as reference to stage
+prim_path = "/World/Robot"
+add_reference_to_stage(usd_path=robot_usd_path, prim_path=prim_path)
+
+# Add robot articulation to scene
 robot = world.scene.add(
     Articulation(
-        prim_path="/Humanoid",
-        name="humanoid",
-        usd_path=robot_usd_path
+        prim_path=prim_path,
+        name="humanoid"
     )
 )
 

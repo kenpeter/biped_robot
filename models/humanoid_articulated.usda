@@ -1,6 +1,6 @@
 #usda 1.0
 (
-    defaultPrim = "Humanoid"
+    defaultPrim = "Robot"
 )
 
 def PhysicsScene "physicsScene"
@@ -9,603 +9,400 @@ def PhysicsScene "physicsScene"
     float physics:gravityMagnitude = 9.81
 }
 
-def Xform "Humanoid"
+def Xform "Robot"
 {
-    quatf xformOp:orient = (0.7071, -0.7071, 0, 0)
-    double3 xformOp:translate = (0, 0, 0.3)
-    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
-
-    def Xform "base_link" (
+    def Xform "torso" (
         prepend apiSchemas = ["PhysicsArticulationRootAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI"]
     )
     {
-        float physics:mass = 2.5
-        bool physics:rigidBodyEnabled = 1
+        float physics:mass = 2
 
-        def Cube "visual" (
+        def Sphere "visual" (
             prepend apiSchemas = ["PhysicsCollisionAPI"]
         )
         {
-            color3f[] primvars:displayColor = [(0.8, 0.2, 0.2)]
-            double size = 0.15
+            color3f[] primvars:displayColor = [(1, 0, 0)]
+            double radius = 0.12
         }
-    }
 
-    def Xform "Head_Servo_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, 0.07999999821186066)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def Xform "head" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         )
         {
-            color3f[] primvars:displayColor = [(0.9, 0.9, 0.3)]
-            double size = 0.06
+            float physics:mass = 0.3
+            double3 xformOp:translate = (0, 0, 0.15000000596046448)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(1, 1, 0)]
+                double radius = 0.05
+            }
         }
-    }
 
-    def PhysicsRevoluteJoint "head_joint" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "Z"
-        rel physics:body0 = </Humanoid/base_link>
-        rel physics:body1 = </Humanoid/Head_Servo_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "L_Shoulder1_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0.05999999865889549, 0.05000000074505806)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def PhysicsRevoluteJoint "head_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.8, 0.2)]
-            double size = 0.05
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Z"
+            rel physics:body0 = </Robot/torso>
+            rel physics:body1 = </Robot/torso/head>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
         }
-    }
 
-    def PhysicsRevoluteJoint "l_shoulder_pitch" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "Y"
-        rel physics:body0 = </Humanoid/base_link>
-        rel physics:body1 = </Humanoid/L_Shoulder1_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "L_Shoulder2_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0.03999999910593033, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def Xform "l_shoulder" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.8, 0.2)]
-            double size = 0.04
+            float physics:mass = 0.3
+            double3 xformOp:translate = (-0.15000000596046448, 0, 0.10000000149011612)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(0, 1, 0)]
+                double radius = 0.05
+            }
         }
-    }
 
-    def PhysicsRevoluteJoint "l_shoulder_roll" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "X"
-        rel physics:body0 = </Humanoid/L_Shoulder1>
-        rel physics:body1 = </Humanoid/L_Shoulder2_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "L_Elbow_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.07999999821186066)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def PhysicsRevoluteJoint "l_shoulder_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.8, 0.2)]
-            double size = 0.04
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Y"
+            rel physics:body0 = </Robot/torso>
+            rel physics:body1 = </Robot/torso/l_shoulder>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
         }
-    }
 
-    def PhysicsRevoluteJoint "l_forearm_roll" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "X"
-        rel physics:body0 = </Humanoid/L_Shoulder2>
-        rel physics:body1 = </Humanoid/L_Elbow_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "R_Shoulder1_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, -0.05999999865889549, 0.05000000074505806)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def Xform "r_shoulder" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.2, 0.8)]
-            double size = 0.05
+            float physics:mass = 0.3
+            double3 xformOp:translate = (0.15000000596046448, 0, 0.10000000149011612)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(0, 0, 1)]
+                double radius = 0.05
+            }
         }
-    }
 
-    def PhysicsRevoluteJoint "r_shoulder_pitch" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "Y"
-        rel physics:body0 = </Humanoid/base_link>
-        rel physics:body1 = </Humanoid/R_Shoulder1_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "R_Shoulder2_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, -0.03999999910593033, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def PhysicsRevoluteJoint "r_shoulder_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.2, 0.8)]
-            double size = 0.04
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Y"
+            rel physics:body0 = </Robot/torso>
+            rel physics:body1 = </Robot/torso/r_shoulder>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
         }
-    }
 
-    def PhysicsRevoluteJoint "r_shoulder_roll" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "X"
-        rel physics:body0 = </Humanoid/R_Shoulder1>
-        rel physics:body1 = </Humanoid/R_Shoulder2_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "R_Elbow_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.07999999821186066)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def Xform "l_hip" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.2, 0.8)]
-            double size = 0.04
+            float physics:mass = 0.3
+            double3 xformOp:translate = (-0.07999999821186066, 0, -0.15000000596046448)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(0, 1, 0)]
+                double radius = 0.05
+            }
         }
-    }
 
-    def PhysicsRevoluteJoint "r_forearm_roll" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "X"
-        rel physics:body0 = </Humanoid/R_Shoulder2>
-        rel physics:body1 = </Humanoid/R_Elbow_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "L_Hip1_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.3
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0.03999999910593033, -0.05000000074505806)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def PhysicsRevoluteJoint "l_hip_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.8, 0.2)]
-            double size = 0.05
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Y"
+            rel physics:body0 = </Robot/torso>
+            rel physics:body1 = </Robot/torso/l_hip>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
         }
-    }
 
-    def PhysicsRevoluteJoint "l_hip_roll" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "X"
-        rel physics:body0 = </Humanoid/base_link>
-        rel physics:body1 = </Humanoid/L_Hip1_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "L_Hip2_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.3
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.03999999910593033)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def Xform "r_hip" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.8, 0.2)]
-            double size = 0.05
+            float physics:mass = 0.3
+            double3 xformOp:translate = (0.07999999821186066, 0, -0.15000000596046448)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(0, 0, 1)]
+                double radius = 0.05
+            }
         }
-    }
 
-    def PhysicsRevoluteJoint "l_hip_pitch" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "Y"
-        rel physics:body0 = </Humanoid/L_Hip1>
-        rel physics:body1 = </Humanoid/L_Hip2_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "L_Knee_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.10000000149011612)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def PhysicsRevoluteJoint "r_hip_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.8, 0.2)]
-            double size = 0.04
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Y"
+            rel physics:body0 = </Robot/torso>
+            rel physics:body1 = </Robot/torso/r_hip>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
         }
     }
 
-    def PhysicsRevoluteJoint "l_knee_pitch" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
+    def "l_shoulder"
     {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "Y"
-        rel physics:body0 = </Humanoid/L_Hip2>
-        rel physics:body1 = </Humanoid/L_Knee_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "L_Ankle_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.10000000149011612)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def Xform "l_elbow" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.8, 0.2)]
-            double size = 0.04
+            float physics:mass = 0.3
+            double3 xformOp:translate = (-0.15000000596046448, 0, 0)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(0, 1, 0)]
+                double radius = 0.05
+            }
         }
-    }
 
-    def PhysicsRevoluteJoint "l_ankle_pitch" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "Y"
-        rel physics:body0 = </Humanoid/L_Knee>
-        rel physics:body1 = </Humanoid/L_Ankle_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "L_Foot_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.1
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.03999999910593033)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def PhysicsRevoluteJoint "l_elbow_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.8, 0.2)]
-            double size = 0.06
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Y"
+            rel physics:body0 = </Robot/l_shoulder>
+            rel physics:body1 = </Robot/l_shoulder/l_elbow>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
         }
     }
 
-    def PhysicsRevoluteJoint "l_foot_roll" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
+    def "r_shoulder"
     {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "X"
-        rel physics:body0 = </Humanoid/L_Ankle>
-        rel physics:body1 = </Humanoid/L_Foot_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "R_Hip1_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.3
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, -0.03999999910593033, -0.05000000074505806)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def Xform "r_elbow" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.2, 0.8)]
-            double size = 0.05
+            float physics:mass = 0.3
+            double3 xformOp:translate = (0.15000000596046448, 0, 0)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(0, 0, 1)]
+                double radius = 0.05
+            }
         }
-    }
 
-    def PhysicsRevoluteJoint "r_hip_roll" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "X"
-        rel physics:body0 = </Humanoid/base_link>
-        rel physics:body1 = </Humanoid/R_Hip1_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "R_Hip2_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.3
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.03999999910593033)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def PhysicsRevoluteJoint "r_elbow_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.2, 0.8)]
-            double size = 0.05
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Y"
+            rel physics:body0 = </Robot/r_shoulder>
+            rel physics:body1 = </Robot/r_shoulder/r_elbow>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
         }
     }
 
-    def PhysicsRevoluteJoint "r_hip_pitch" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
+    def "l_hip"
     {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "Y"
-        rel physics:body0 = </Humanoid/R_Hip1>
-        rel physics:body1 = </Humanoid/R_Hip2_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "R_Knee_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.10000000149011612)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def Xform "l_knee" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.2, 0.8)]
-            double size = 0.04
+            float physics:mass = 0.3
+            double3 xformOp:translate = (0, 0, -0.20000000298023224)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(0, 1, 0)]
+                double radius = 0.05
+            }
         }
-    }
 
-    def PhysicsRevoluteJoint "r_knee_pitch" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "Y"
-        rel physics:body0 = </Humanoid/R_Hip2>
-        rel physics:body1 = </Humanoid/R_Knee_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "R_Ankle_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.10000000149011612)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def PhysicsRevoluteJoint "l_knee_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.2, 0.8)]
-            double size = 0.04
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Y"
+            rel physics:body0 = </Robot/l_hip>
+            rel physics:body1 = </Robot/l_hip/l_knee>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
         }
     }
 
-    def PhysicsRevoluteJoint "r_ankle_pitch" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
+    def "l_knee"
     {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "Y"
-        rel physics:body0 = </Humanoid/R_Knee>
-        rel physics:body1 = </Humanoid/R_Ankle_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "R_Foot_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.1
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.03999999910593033)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        def Xform "l_ankle" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         )
         {
-            color3f[] primvars:displayColor = [(0.2, 0.2, 0.8)]
-            double size = 0.06
+            float physics:mass = 0.3
+            double3 xformOp:translate = (0, 0, -0.20000000298023224)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(0, 1, 0)]
+                double radius = 0.05
+            }
+        }
+
+        def PhysicsRevoluteJoint "l_ankle_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+        )
+        {
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Y"
+            rel physics:body0 = </Robot/l_knee>
+            rel physics:body1 = </Robot/l_knee/l_ankle>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
         }
     }
 
-    def PhysicsRevoluteJoint "r_foot_roll" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
+    def "r_hip"
     {
-        float drive:angular:physics:damping = 1
-        float drive:angular:physics:maxForce = 50
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "X"
-        rel physics:body0 = </Humanoid/R_Ankle>
-        rel physics:body1 = </Humanoid/R_Foot_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        def Xform "r_knee" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+        )
+        {
+            float physics:mass = 0.3
+            double3 xformOp:translate = (0, 0, -0.20000000298023224)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(0, 0, 1)]
+                double radius = 0.05
+            }
+        }
+
+        def PhysicsRevoluteJoint "r_knee_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+        )
+        {
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Y"
+            rel physics:body0 = </Robot/r_hip>
+            rel physics:body1 = </Robot/r_hip/r_knee>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
+        }
+    }
+
+    def "r_knee"
+    {
+        def Xform "r_ankle" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+        )
+        {
+            float physics:mass = 0.3
+            double3 xformOp:translate = (0, 0, -0.20000000298023224)
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+
+            def Sphere "visual" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                color3f[] primvars:displayColor = [(0, 0, 1)]
+                double radius = 0.05
+            }
+        }
+
+        def PhysicsRevoluteJoint "r_ankle_joint" (
+            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+        )
+        {
+            float drive:angular:physics:damping = 1
+            float drive:angular:physics:maxForce = 20
+            float drive:angular:physics:stiffness = 0
+            uniform token drive:angular:physics:type = "force"
+            uniform token physics:axis = "Y"
+            rel physics:body0 = </Robot/r_knee>
+            rel physics:body1 = </Robot/r_knee/r_ankle>
+            float physics:lowerLimit = -3.1415927
+            float physics:upperLimit = 3.1415927
+        }
     }
 }
 
-def "World"
+def Mesh "Ground" (
+    prepend apiSchemas = ["PhysicsCollisionAPI"]
+)
 {
-    def Xform "Ground"
-    {
-        def Mesh "CollisionMesh" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            int[] faceVertexCounts = [4]
-            int[] faceVertexIndices = [0, 1, 2, 3]
-            point3f[] points = [(-5, -5, 0), (5, -5, 0), (5, 5, 0), (-5, 5, 0)]
-            color3f[] primvars:displayColor = [(0.3, 0.3, 0.3)]
-        }
-    }
+    int[] faceVertexCounts = [4]
+    int[] faceVertexIndices = [0, 1, 2, 3]
+    point3f[] points = [(-10, -10, 0), (10, -10, 0), (10, 10, 0), (-10, 10, 0)]
 }
 

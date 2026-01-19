@@ -6,13 +6,25 @@ Train in Isaac Sim, deploy to Jetson hardware.
 
 ## Current Status (2026-01-19)
 
-✅ **Robot visible and moving** - All 17 joints working correctly in Isaac Sim
+**Progress:** Robot structure created but parts snap together
 
-Robot appears as colored cubes:
-- 🔴 RED torso
-- 🟡 YELLOW head
-- 🟢 GREEN left arm/leg
-- 🔵 BLUE right arm/leg
+**✅ Fixed Issues:**
+1. Flat hierarchy → Links now properly nested (parent-child relationships)
+2. Rigid body errors → Added XformStack reset for nested bodies
+3. No more critical errors → Robot loads and simulates
+
+**⚠️ Remaining Problem:**
+- Robot parts collapse to single location (1-2 cubes visible instead of humanoid)
+- "Disjointed body transforms" warnings for joints (elbows, knees, ankles)
+- PhysX snaps objects together during simulation
+- Only see 1-2 overlapping cubes, not 11 spread-out body parts
+
+**Root Cause:** Joints missing localPos0/localPos1 attributes
+- Child links have position offsets (head at z=0.15, shoulders at x=±0.15, etc.)
+- BUT joints don't define where on parent/child the connection point is
+- Result: PhysX snaps all parts to torso location
+
+**Next Step:** Add joint local position offsets to prevent snapping
 
 ---
 
@@ -24,11 +36,12 @@ Robot appears as colored cubes:
 # Generate USD file with embedded geometry
 ./run_isaac.sh setup_isaac_sim_robot.py
 
-# Test robot movement (colored cubes will wave together)
+# Test robot - GUI mode (non-headless)
 ./run_isaac.sh test_humanoid_visible.py
 ```
 
-**To test robot movement:** `./run_isaac.sh test_humanoid_visible.py`
+**Expected (current):** 1-2 overlapping cubes at center
+**Goal:** Stick figure humanoid with 11 spread-out body parts
 
 ### Jetson (Hardware)
 
