@@ -15,8 +15,8 @@ class ServoDriverNode(Node):
         self.declare_parameter('serial_port', '/dev/ttyUSB1')
         self.declare_parameter('baud_rate', 9600)
 
-        port = str(self.get_parameter('serial_port').value)
-        baud = int(self.get_parameter('baud_rate').value)
+        port = self.get_parameter('serial_port').value
+        baud = self.get_parameter('baud_rate').value
 
         # Load servo config
         self.servos = {}
