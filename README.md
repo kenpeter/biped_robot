@@ -24,9 +24,11 @@ Robot appears as colored cubes:
 # Generate USD file with embedded geometry
 ./run_isaac.sh setup_isaac_sim_robot.py
 
-# Test robot visibility and movement
+# Test robot movement (colored cubes will wave together)
 ./run_isaac.sh test_humanoid_visible.py
 ```
+
+**To test robot movement:** `./run_isaac.sh test_humanoid_visible.py`
 
 ### Jetson (Hardware)
 
