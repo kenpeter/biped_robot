@@ -1,164 +1,112 @@
-# Biped Robot - ROS2 Workspace
+# Biped Robot
 
-> **Note:** The Jetson directory structure is totally different from the Desktop environment.
-> - **Desktop:** Used for Isaac Sim, Training, and Development.
-> - **Jetson:** Used for Deployment, Hardware Control, and Inference.
-
-## Project Workflow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  1. DESKTOP (Isaac Sim)         2. JETSON (Orin Nano)           │
-│  ─────────────────────          ────────────────────────────    │
-│  humanoid_description/    →     humanoid_hardware/              │
-│  - USD robot model              - ROS 2 servo driver            │
-│  - Training Environment         - Real robot control            │
-└─────────────────────────────────────────────────────────────────┘
-```
+Train in Isaac Sim, deploy to Jetson hardware.
 
 ---
 
-# SECTION A: DESKTOP (Simulation)
+## Quick Start
 
-**Goal:** Run physics simulation and train the policy.
-**Working Directory:** `~/work/biped_ws`
-
-### 1. Visualization & Model Editing
-To view the full 3D robot model (geometry and materials) or edit the structure:
+### Desktop (Simulation)
 
 ```bash
-# Navigate to workspace
-cd ~/work/biped_ws
-
-# View in Blender
-blender --python models/create_robot.py
-```
-
-### 2. Run Isaac Sim
-Launch Isaac Sim and load the `humanoid.glb` model.
-
-```bash
-# 1. Navigate to workspace
-cd ~/work/biped_ws
-
-# 2. Run Isaac Sim (Check your specific install path)
-# Common path example:
-~/.local/share/ov/pkg/isaac_sim-2023.1.1/isaac-sim.sh --file models/humanoid.glb
-```
-
-### 3. Massive Multi-Robot RL Training (BLOCKED)
-
-An attempt was made to set up the Isaac Lab `DirectRLEnv` for multi-robot reinforcement learning. However, this is currently blocked by a `KeyError: 'robot'` during articulation registration, indicating a configuration issue with custom USD assets in `humanoid_direct_env.py`.
-
-Please refer to `MEMORY.md` for a detailed log of the attempts and the current status of this issue.
-
-```bash
-# To attempt running the currently blocked training script:
-# (Note: This will likely result in a KeyError)
-# cd ~/work/biped_robot
-# ./run_isaac.sh train_humanoid.py
-```
-
-**What to Expect (if the issue is resolved):**
--   Isaac Sim will launch and display 4096 instances of your humanoid robot.
--   A training loop will start, and you will see messages about episodes, rewards, and policy updates in the console.
--   Initially, the robots will flail or fall, but over time, they should learn to stand and perform desired behaviors.
-
----
-
-# SECTION B: JETSON (Robot)
-
-**Goal:** Control the physical hardware using the trained policy or test scripts.
-**Working Directory:** `/home/jetson/work/biped_ws`
-
-### 1. Hardware Configuration
-- **Control Board:** Yahboom Rosmaster (Green/Black Board)
-- **Port:** `/dev/ttyUSB0` (Direct USB connection)
-- **Servo Config:**
-  - **Port S1:** Head/Test Servo
-  - **Pins 1-19:** Body Servos (via CP2102 adapter on `/dev/ttyUSB1` if applicable, or direct)
-  
-*Note: See `memory.md` for detailed pinouts.*
-
-### 2. Quick Start (Real Robot)
-```bash
-cd /home/jetson/work/biped_ws
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-# Launch the hardware driver
-ros2 launch humanoid_hardware robot_control.launch.py
-```
-
-### 3. Test Scripts
-**Method 1: Rosmaster Direct (Head/S1)**
-```bash
-sudo python3 /home/jetson/test_rosmaster_s1.py
-```
-
-**Method 2: Full Hardware Verification**
-Checks battery, servo connection, and centers all servos.
-```bash
-python3 verify_hardware.py
-```
-
-### 4. Build Workspace
-On the Jetson, you must build the packages to generate the ROS 2 interfaces.
-```bash
-colcon build --packages-select humanoid_hardware
-source install/setup.bash
-```
-
----
-
-## Troubleshooting (Jetson)
-
-**Hardware Issues:**
-- **No Board Response:** Check if `/dev/ttyUSB0` or `/dev/ttyUSB1` exists.
-- **Servos Not Moving:** Check battery voltage (should be > 7.4V) and switch on the board.
-- **UART/Serial Errors:** The Orin Nano has locked UART ports (`/dev/ttyTHS1`). Use USB adapters or the Rosmaster USB port.
-
----
-
-## Setting Up for Isaac Sim (Desktop)
-
-To set up and train the biped robot in Isaac Sim, use the provided `run_isaac.sh` wrapper script. This script manages the necessary conda environment activation and interfaces with IsaacLab.
-
-### 1. Convert GLB to Articulated USD
-
-First, convert your `humanoid.glb` model into an articulated USD format. This script has been updated to:
--   **Add Structural Offsets:** Expands the robot parts from the origin so they form a proper humanoid shape.
--   **Fix Joint Hierarchy:** Correctly links parents and children for the kinematic chain.
--   **Apply Physics:** Adds mass, rigid body, and collision APIs.
-
-```bash
+# 1. Convert GLB model to articulated USD
 ./run_isaac.sh setup_isaac_sim_robot.py
-```
-*Output: `models/humanoid_articulated.usda`*
 
-### 2. Run the Training Environment
-
-Once the articulated USD is created, you can launch the Isaac Sim training environment. This will open the Isaac Sim application and run a demo loop with a PD controller.
-
-```bash
+# 2. Run training environment (PD controller demo)
 ./run_isaac.sh isaac_sim_training_env.py
 ```
 
-**What to Expect:**
--   The script will print progress messages as it initializes (5 steps total).
--   Isaac Sim window will open showing the robot in a scene with a ground plane.
--   The robot spawns 0.45m above the ground to prevent initial clipping.
--   The orientation is automatically corrected (Blender Y-up → Isaac Sim Z-up).
--   The demo runs for 2000 simulation steps with a PD controller trying to maintain balance.
--   **Note:** The robot will likely **fall down** after a few seconds. This is expected! The simple PD controller is not sufficient for bipedal balancing. The goal of RL training (next steps) is to learn a policy that can maintain balance.
+**Expected behavior:** Robot spawns upright (0.45m above ground), runs for 2000 steps, then falls. This is normal - it needs RL training to balance.
 
-**Recent Fixes (2026-01-18):**
--   ✅ Fixed 90-degree rotation issue by applying -90° X-axis rotation at spawn time.
--   ✅ Added detailed logging and error handling for better debugging.
--   ✅ Improved initialization sequence to ensure USD references load correctly.
--   ✅ Output is now unbuffered so you can see progress in real-time.
+**Blocked:** Multi-robot training (`train_humanoid.py`) has Isaac Lab asset registration issues. See MEMORY.md.
 
-**Troubleshooting:**
--   If the robot appears sideways or upside down, check the orientation quaternion in `isaac_sim_training_env.py:45`.
--   If the script hangs, check the Isaac Sim log file at `~/.local/share/ov/pkg/isaac_sim-*/logs/`.
--   If the articulation fails to load, verify the USD file structure by opening `models/humanoid_articulated.usda` in a text editor.
+### Jetson (Hardware)
+
+```bash
+# Test servos
+python3 verify_hardware.py
+
+# Launch ROS 2 hardware driver
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch humanoid_hardware robot_control.launch.py
+
+# Rebuild after changes
+colcon build --packages-select humanoid_hardware
+```
+
+**Hardware:**
+- Servo board: Hiwonder LSC-24 on /dev/ttyUSB1 @ 9600 baud
+- Head: servo 0 (with thermal camera)
+- Arms/legs: servos 1-19
+- See CLAUDE.md for full servo mapping
+
+---
+
+## Troubleshooting
+
+### Isaac Sim Issues
+
+**Robot rotated/upside down:**
+- Check orientation quaternion in `isaac_sim_training_env.py:45`
+- Should be `[0.7071, -0.7071, 0.0, 0.0]` for Blender Y-up → Isaac Z-up
+
+**Robot not visible:**
+- Verify `models/humanoid.glb` exists
+- Open `models/humanoid_articulated.usda` and check reference path
+
+**Script hangs:**
+- Check Isaac Sim logs: `~/.local/share/ov/pkg/isaac_sim-*/logs/`
+- Try headless mode: edit `isaac_sim_training_env.py` → `SimulationApp({"headless": True})`
+
+### Jetson Hardware Issues
+
+**Servos not moving:**
+- Check battery voltage (>7.4V) and LSC-24 blue LED is ON
+- Verify `/dev/ttyUSB1` exists: `ls -l /dev/ttyUSB*`
+- Check wiring: CP2102 RX→Board TX, TX→Board RX
+
+**UART errors:**
+- DO NOT use `/dev/ttyTHS1` (locked by kernel on Orin Nano)
+- Use USB adapters or Rosmaster USB port instead
+
+---
+
+## Project Structure
+
+```
+biped_robot/
+├── models/                          # 3D models
+│   ├── humanoid.glb                # Blender export
+│   ├── humanoid_articulated.usda   # Isaac Sim physics model
+│   ├── create_robot.py             # Model generator
+│   └── export_usd.py               # USD exporter
+│
+├── src/
+│   ├── humanoid_description/       # Robot URDF/USD
+│   └── humanoid_hardware/          # ROS 2 driver (Jetson)
+│
+├── setup_isaac_sim_robot.py        # GLB → USD converter
+├── isaac_sim_training_env.py       # ✅ Working training environment
+├── humanoid_direct_env.py          # ❌ Blocked (Isaac Lab issue)
+├── train_humanoid.py               # ❌ Blocked (depends on above)
+├── verify_hardware.py              # Hardware test script
+├── run_isaac.sh                    # Isaac Sim launcher
+│
+├── README.md                       # This file
+├── CLAUDE.md                       # Servo mapping & instructions
+└── MEMORY.md                       # Development notes
+```
+
+---
+
+## Development Notes
+
+**Workflow:**
+1. Train policy in Isaac Sim (Desktop: RTX 4070 Ti, 96GB RAM, Ubuntu 24.04)
+2. Export to ONNX/TensorRT
+3. Deploy to Jetson Orin Nano with ROS 2
+
+**Environment:** `isaaclab_env` (Python 3.11, Isaac Sim 5.1 via conda)
+
+See MEMORY.md for detailed issue tracking and recent fixes.

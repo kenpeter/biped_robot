@@ -148,12 +148,12 @@ def create_articulated_robot():
         joint.CreateLowerLimitAttr(lower_rad)
         joint.CreateUpperLimitAttr(upper_rad)
 
-        # Add drive for actuation
+        # Add drive for actuation (DIRECT EFFORT CONTROL - no spring)
         drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular")
         drive.CreateTypeAttr("force")
-        drive.CreateMaxForceAttr(100.0)  # Max torque in N⋅m
-        drive.CreateDampingAttr(10.0)
-        drive.CreateStiffnessAttr(0.0)
+        drive.CreateMaxForceAttr(100.0)    # Max torque: 100 N⋅m
+        drive.CreateDampingAttr(20.0)      # Moderate damping: 20 N⋅m⋅s/rad
+        drive.CreateStiffnessAttr(500.0)    # Position control with strong stiffness
 
     # Add ground plane for training
     print("Adding ground plane...")

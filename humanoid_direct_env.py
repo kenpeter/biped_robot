@@ -48,14 +48,14 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     
     # Scene Setup
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096,  # SPAWN 4096 ROBOTS!
+        num_envs=4,  # TEMP: Reduced from 4096 to 4 for testing
         env_spacing=2.0,
         replicate_physics=True,
     )
     
     # Robot Articulation (single source for spawning and control properties)
     robot: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_0/Humanoid", # Explicit path for the first environment's robot
+        prim_path="/World/envs/env_0/Robot", # Fixed: Remove name parameter - Isaac Lab handles naming automatically
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.35), # Initial position
             rot=(0.7071, 0.7071, 0.0, 0.0) # Initial orientation (w, x, y, z)

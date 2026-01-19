@@ -39,9 +39,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Z"
         rel physics:body0 = </Humanoid/base_link>
@@ -64,9 +64,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/base_link>
@@ -89,9 +89,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/L_Shoulder1_link>
@@ -114,9 +114,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/L_Shoulder2_link>
@@ -139,9 +139,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/base_link>
@@ -164,9 +164,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/R_Shoulder1_link>
@@ -189,9 +189,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/R_Shoulder2_link>
@@ -214,9 +214,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/base_link>
@@ -239,9 +239,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/L_Hip1_link>
@@ -264,9 +264,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/L_Hip2_link>
@@ -289,9 +289,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/L_Knee_link>
@@ -314,9 +314,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/L_Ankle_link>
@@ -339,9 +339,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/base_link>
@@ -364,9 +364,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/R_Hip1_link>
@@ -389,9 +389,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/R_Hip2_link>
@@ -414,9 +414,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/R_Knee_link>
@@ -439,9 +439,9 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsDriveAPI:angular"]
     )
     {
-        float drive:angular:physics:damping = 10
+        float drive:angular:physics:damping = 20
         float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:stiffness = 500
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/R_Ankle_link>
