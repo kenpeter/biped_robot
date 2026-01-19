@@ -1,15 +1,18 @@
 """
 Test humanoid robot with embedded visible geometry
 Should see COLORED CUBES representing robot parts
+Press Ctrl+C to exit anytime.
 """
 
 import os
+import sys
 import numpy as np
 from isaacsim import SimulationApp
 
 print("="*80)
 print("HUMANOID ROBOT VISIBILITY TEST")
 print("You should see colored cubes: RED torso, YELLOW head, GREEN/BLUE limbs")
+print("Press Ctrl+C to exit")
 print("="*80)
 
 # Launch Isaac Sim
@@ -17,7 +20,7 @@ simulation_app = SimulationApp({"headless": False})
 
 from omni.isaac.core import World
 from omni.isaac.core.articulations import Articulation
-from omni.isaac.core.utils.stage import add_reference_to_stage
+from omni.isaac.core.utils.prims import create_prim
 
 # Create world
 print("\nCreating world...")
@@ -28,9 +31,15 @@ world.scene.add_default_ground_plane()
 robot_usd_path = "/home/kenpeter/work/biped_robot/models/humanoid_articulated.usda"
 print(f"Loading robot from: {robot_usd_path}")
 
-# Add USD as reference to stage
+# Spawn robot with orientation fix (Blender Y-up to Isaac Sim Z-up)
 prim_path = "/World/Robot"
-add_reference_to_stage(usd_path=robot_usd_path, prim_path=prim_path)
+create_prim(
+    prim_path=prim_path,
+    prim_type="Xform",
+    usd_path=robot_usd_path,
+    position=np.array([0.0, 0.0, 0.15]),  # 15cm above ground
+    orientation=np.array([0.7071, 0.7071, 0.0, 0.0])  # +90° X rotation (w, x, y, z)
+)
 
 # Add robot articulation to scene
 robot = world.scene.add(
@@ -49,12 +58,13 @@ print(f"  Joint names: {robot.dof_names}")
 
 print("\n" + "="*80)
 print("WAVING ALL JOINTS - WATCH FOR COLORED CUBES MOVING")
+print("Press Ctrl+C to exit")
 print("="*80 + "\n")
 
 # Wave all joints together
 step = 0
 try:
-    while simulation_app.is_running() and step < 300:  # Run for 5 seconds
+    while simulation_app.is_running():  # Run indefinitely until user exits
         # Create wave motion
         time = step / 60.0
         wave = np.radians(30) * np.sin(2 * np.pi * 0.5 * time)
@@ -65,7 +75,7 @@ try:
 
         world.step(render=True)
 
-        if step % 30 == 0:
+        if step % 60 == 0:
             print(f"Step {step:3d} | Wave: {np.degrees(wave):+6.1f}°")
 
         step += 1
