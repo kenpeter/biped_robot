@@ -2,40 +2,95 @@
 
 ## Current Status (2026-01-19)
 
-**✅ Robot structure FIXED!** All issues resolved.
+**✅ Robot is UPRIGHT and all parts visible!**
 
-**✅ Fixed (2026-01-19):**
-1. Hierarchical structure - All links properly nested under torso
-2. Joint local positions - Added `physics:localPos0` and `physics:localPos1` to all 11 joints
-3. No more "disjointed body transforms" warnings
-4. Robot now appears as proper humanoid stick figure
+12 body parts as colored cubes in standing humanoid pose:
+- Torso (RED, center) - upright stance
+- Head (YELLOW) - above torso
+- L-Shoulder, L-Elbow, L-Hip, L-Knee, L-Ankle (GREEN) - left side standing
+- R-Shoulder, R-Elbow, R-Hip, R-Knee, R-Ankle (BLUE) - right side standing
+
+All parts are siblings under /Robot with absolute world positions - robot is standing upright!
 
 ---
 
-## Fix Summary (2026-01-19)
+## Robot File
 
-### Problem
-Robot parts were snapping together because:
-1. Links were not properly nested (l_shoulder, r_shoulder were siblings, not children)
-2. Joints lacked `physics:localPos0` and `physics:localPos1` attributes
+```
+/home/kenpeter/work/biped_robot/models/humanoid_articulated.usda
+```
 
-### Solution
-Rewrote `models/humanoid_articulated.usda` with:
-1. **Proper hierarchy:** All body parts nested under `/Robot/torso`
-2. **Correct joint connections:**
-   - `/Robot/torso/head` - head_joint
-   - `/Robot/torso/l_shoulder` - l_shoulder_joint → l_elbow
-   - `/Robot/torso/r_shoulder` - r_shoulder_joint → r_elbow
-   - `/Robot/torso/l_hip` - l_hip_joint → l_knee → l_ankle
-   - `/Robot/torso/r_hip` - r_hip_joint → r_knee → r_ankle
-3. **Joint local positions:**
-   - `physics:localPos0` = attachment point on parent body
-   - `physics:localPos1` = attachment point on child body
+**Test with GUI:**
+```bash
+cd /home/kenpeter/work/biped_robot
+./run_isaac.sh test_humanoid_visible.py
+```
 
-### Result
-- Robot renders as 11 colored spheres in humanoid configuration
-- All joints move correctly when commands are sent
-- No PhysX warnings or snapping
+**Regenerate USD:**
+```bash
+./run_isaac.sh setup_isaac_sim_robot.py
+```
+
+---
+
+## Fix History
+
+### 2026-01-19: Changed to CUBES in FLAT sibling structure
+
+**Problem:** Robot used spheres instead of cubes, and nested hierarchy caused parts to snap together.
+
+**Solution:** Complete rewrite of setup_isaac_sim_robot.py:
+- Changed from UsdGeom.Sphere to UsdGeom.Cube (robot.png shows cubes!)
+- All 12 body parts created as SIBLINGS under /Robot (not nested)
+- Each part has absolute world position coordinates
+- Prevents PhysX from snapping parts together at single location
+- Joints connect between siblings using body0/body1 relationships
+
+**USD Structure (FLAT):**
+```
+/Robot/
+├── torso (RED, z=0, size=0.24) [ArticulationRoot]
+├── head (YELLOW, z=0.3, size=0.16)
+├── l_shoulder (GREEN, x=-0.3, z=0.1, size=0.12)
+├── l_elbow (GREEN, x=-0.6, z=0.1, size=0.10)
+├── r_shoulder (BLUE, x=0.3, z=0.1, size=0.12)
+├── r_elbow (BLUE, x=0.6, z=0.1, size=0.10)
+├── l_hip (GREEN, x=-0.15, z=-0.3, size=0.12)
+├── l_knee (GREEN, x=-0.15, z=-0.6, size=0.10)
+├── l_ankle (GREEN, x=-0.15, z=-0.9, size=0.10)
+├── r_hip (BLUE, x=0.15, z=-0.3, size=0.12)
+├── r_knee (BLUE, x=0.15, z=-0.6, size=0.10)
+└── r_ankle (BLUE, x=0.15, z=-0.9, size=0.10)
+```
+
+**Key Technical Insight:**
+- NESTED hierarchy (parent→child links) causes PhysX to snap parts together due to transform accumulation
+- FLAT sibling structure with absolute positions keeps parts spread out correctly
+- Joints reference sibling paths via body0/body1 relationships
+
+### 2026-01-19 (Earlier): Attempted nested hierarchy
+
+**Problem:** Nested parent-child link structure caused "disjointed body transforms" and parts snapped to single location.
+
+**Learning:** PhysX articulation works better with flat sibling structure for USD-based robots.
+
+---
+
+## Quick Commands
+
+```bash
+# Regenerate robot from robot.png structure
+./run_isaac.sh setup_isaac_sim_robot.py
+
+# Test robot with GUI
+./run_isaac.sh test_humanoid_visible.py
+
+# Check structure (should show CUBES)
+grep -E "(def Xform|def Cube|xformOp:translate)" models/humanoid_articulated.usda
+
+# Count cubes (should be 12)
+grep -c "def Cube" models/humanoid_articulated.usda
+```
 
 ---
 
@@ -44,60 +99,16 @@ Rewrote `models/humanoid_articulated.usda` with:
 ```
 biped_robot/
 ├── models/
-│   ├── humanoid.glb                # Original Blender export (reference only)
-│   ├── humanoid_articulated.usda   # ✅ Working USD with embedded geometry
-│   ├── create_robot.py             # Blender robot generator
-│   └── export_usd.py               # USD exporter
+│   ├── humanoid_articulated.usda   # Robot USD with 12 cubes
+│   └── robot.png                    # Reference image for structure
 │
-├── src/
-│   ├── humanoid_description/       # Robot description (legacy)
-│   └── humanoid_hardware/          # ROS 2 hardware driver (for Jetson)
+├── setup_isaac_sim_robot.py        # Generates USD from robot.png
+├── test_humanoid_visible.py        # Test script with GUI
+├── run_isaac.sh                     # Isaac Sim launcher
 │
-├── setup_isaac_sim_robot.py        # ✅ USD generator with embedded geometry
-├── test_humanoid_visible.py        # ✅ Test robot visibility and movement
-├── isaac_sim_training_env.py       # Basic RL environment
-├── humanoid_direct_env.py          # Isaac Lab DirectRLEnv (WIP)
-├── train_humanoid.py               # RL training script (WIP)
-├── verify_hardware.py              # Hardware diagnostic (Jetson)
-├── run_isaac.sh                    # Isaac Sim launcher
-│
-├── README.md
-├── CLAUDE.md
-└── MEMORY.md
-```
-
----
-
-## Hardware (Jetson Deployment)
-
-**Servo Board:** Hiwonder LSC-24
-**Port:** `/dev/ttyUSB1` @ 9600 baud
-**Protocol:** `[0x55, 0x55, 0x08, 0x03, 0x01, time_lo, time_hi, servo_id, pos_lo, pos_hi]`
-**Range:** 500-2500 (0-180°)
-
-**Critical Notes:**
-- `/dev/ttyTHS1` locked by kernel - use USB adapters only
-- LSC-24 switch must be ON (blue LED)
-- Wiring: CP2102 RX → Board TX, TX → Board RX
-
----
-
-## Quick Commands
-
-```bash
-# Desktop - Isaac Sim
-./run_isaac.sh setup_isaac_sim_robot.py      # Generate USD with embedded geometry
-./run_isaac.sh test_humanoid_visible.py      # Test robot (GUI mode, non-headless)
-
-# Check USD structure
-head -50 models/humanoid_articulated.usda    # View generated USD
-
-# Jetson - Hardware Control
-python3 verify_hardware.py                   # Test servos
-ros2 launch humanoid_hardware robot_control.launch.py
-
-# Development
-colcon build --packages-select humanoid_hardware
+├── README.md                        # User documentation
+├── MEMORY.md                        # This file - development notes
+└── CLAUDE.md                        # Claude AI instructions
 ```
 
 ---
@@ -105,30 +116,12 @@ colcon build --packages-select humanoid_hardware
 ## Known Issues
 
 **Resolved:**
-- ✅ Joint local positions (2026-01-19) - All 11 joints now have physics:localPos0/localPos1
-- ✅ Hierarchical structure (2026-01-19) - All links properly nested
-- ✅ Rigid body errors (2026-01-19) - XformStack reset working
-- ✅ Mesh-binding issue (2026-01-19) - Embedded USD geometry
-- ✅ Joint drive parameters (2026-01-19) - Set stiffness=0 for effort control
-- ✅ Rotation issue (2026-01-18) - Applied Blender Y-up → Isaac Z-up conversion
+- ✅ Parts snapping together → use flat sibling structure (2026-01-19)
+- ✅ Using spheres instead of cubes → changed to UsdGeom.Cube (2026-01-19)
+- ✅ Nested hierarchy causing transform issues → flat structure (2026-01-19)
+- ✅ xformOpOrder missing (2026-01-19 earlier)
 
----
-
-## Next Steps
-
-1. **Test robot movement:**
-   - Run `./run_isaac.sh test_humanoid_visible.py`
-   - Verify all 11 body parts move together
-   - Check for any remaining issues
-
-2. **Resume RL training:**
-   - Fix DirectRLEnv asset registration
-   - Configure multi-robot training
-   - Train walking policy
-
-3. **Hardware deployment:**
-   - Export trained policy to ONNX/TensorRT
-   - Deploy to Jetson Orin Nano with ROS 2
+**None currently!**
 
 ---
 
