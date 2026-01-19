@@ -25,7 +25,7 @@ Train in Isaac Sim, deploy to Jetson hardware.
 **Test with GUI:**
 ```bash
 cd /home/kenpeter/work/biped_robot
-./run_isaac.sh test_humanoid_visible.py
+./run_isaac.sh models/test_humanoid_visible.py
 ```
 
 ---
@@ -36,7 +36,7 @@ cd /home/kenpeter/work/biped_robot
 
 ```bash
 cd /home/kenpeter/work/biped_robot
-./run_isaac.sh test_humanoid_visible.py
+./run_isaac.sh models/test_humanoid_visible.py
 ```
 
 **Expected:** Isaac Sim opens with UI showing humanoid robot:
@@ -53,22 +53,23 @@ cd /home/kenpeter/work/biped_robot
 ```
 biped_robot/
 ├── models/
-│   ├── humanoid_articulated.usda   # Robot USD with 17 DOF physics + GLB mesh
-│   └── humanoid.glb                 # 3D mesh visual (from Blender)
+│   ├── humanoid_articulated.usda      # Robot USD with 17 DOF physics
+│   ├── humanoid.glb                   # 3D mesh visual (from Blender)
+│   ├── humanoid_robot.blend           # Blender source file
+│   ├── test_humanoid_visible.py       # Test robot in Isaac Sim
+│   ├── isaac_sim_training_env.py      # RL training environment
+│   ├── train_humanoid.py              # Training script
+│   └── humanoid_direct_env.py         # Isaac Lab DirectRLEnv
 │
 ├── src/
-│   ├── humanoid_description/        # URDF/ROS robot description
-│   └── humanoid_hardware/           # ROS 2 driver for Jetson
+│   ├── humanoid_description/          # URDF/ROS robot description
+│   └── humanoid_hardware/             # ROS 2 driver for Jetson
 │
-├── test_humanoid_visible.py        # Test robot in Isaac Sim (with wave motion)
-├── isaac_sim_training_env.py       # RL training environment
-├── train_humanoid.py                # Training script
-├── verify_hardware.py               # Hardware test for Jetson
-│
-├── run_isaac.sh                     # Isaac Sim launcher script
-├── README.md                        # This file
-├── MEMORY.md                        # Development notes
-└── CLAUDE.md                        # Claude AI instructions
+├── verify_hardware.py                 # Hardware test for Jetson
+├── run_isaac.sh                       # Isaac Sim launcher script
+├── README.md                          # This file
+├── MEMORY.md                          # Development notes
+└── CLAUDE.md                          # Claude AI instructions
 ```
 
 ---
@@ -94,13 +95,13 @@ biped_robot/
 
 ```bash
 # Test robot with GUI (wave motion demo)
-./run_isaac.sh test_humanoid_visible.py
+./run_isaac.sh models/test_humanoid_visible.py
 
 # Run RL training environment
-./run_isaac.sh isaac_sim_training_env.py
+./run_isaac.sh models/isaac_sim_training_env.py
 
 # Train robot (PPO/SAC)
-./run_isaac.sh train_humanoid.py
+./run_isaac.sh models/train_humanoid.py
 
 # Check USD file structure
 head -100 models/humanoid_articulated.usda
