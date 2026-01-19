@@ -4,21 +4,28 @@ Train in Isaac Sim, deploy to Jetson hardware.
 
 ---
 
+## Current Status (2026-01-19)
+
+**Robot visible:** ✅ YES - loads and renders correctly
+**Joints recognized:** ✅ YES - 17 DOFs detected
+**Joints moving:** ❌ NO - visuals not bound to physics links
+
+**Issue:** Visual meshes from GLB are not bound to physics links, so joint commands don't move the robot visuals. This is a mesh-binding problem.
+
+---
+
 ## Quick Start
 
 ### Desktop (Simulation)
 
 ```bash
-# 1. Convert GLB model to articulated USD
-./run_isaac.sh setup_isaac_sim_robot.py
+# Launch Isaac Lab UI
+cd /home/kenpeter/work/IsaacLab && ./isaaclab.sh -s
+# Then: File > Open > /home/kenpeter/work/biped_robot/models/humanoid_articulated.usda
 
-# 2. Run training environment (PD controller demo)
-./run_isaac.sh isaac_sim_training_env.py
+# Run joint control test
+./run_isaac.sh test_joint_final.py
 ```
-
-**Expected behavior:** Robot spawns upright (0.45m above ground), runs for 2000 steps, then falls. This is normal - it needs RL training to balance.
-
-**Blocked:** Multi-robot training (`train_humanoid.py`) has Isaac Lab asset registration issues. See MEMORY.md.
 
 ### Jetson (Hardware)
 
@@ -43,6 +50,35 @@ colcon build --packages-select humanoid_hardware
 
 ---
 
+## Problem: Mesh Not Bound to Physics
+
+**Symptom:** Robot appears but joints don't move when sending commands.
+
+**Root Cause:** The USD file (`humanoid_articulated.usda`) references the GLB as a single reference:
+```
+def Xform "Meshes" (
+    prepend references = @humanoid.glb@
+)
+```
+This imports all 35 meshes under `/Humanoid/Meshes/`, but physics links are separate (`/Humanoid/base_link`, `/Humanoid/Head_Servo_link`, etc.). No binding exists between visuals and physics.
+
+**Solutions:**
+
+1. **Export from Blender as USD** (recommended):
+   - Blender can export directly to USD format
+   - Meshes will be in USD format, not GLB reference
+   - Physics bindings can be preserved
+
+2. **Use URDF importer:**
+   - If you have a URDF file, Isaac Sim can import it
+   - URDF importer handles mesh-physics binding automatically
+
+3. **Use Isaac Sim's "Create Reference" dialog:**
+   - File > Create > Reference (not File > Open)
+   - May handle binding better than USD reference syntax
+
+---
+
 ## Troubleshooting
 
 ### Isaac Sim Issues
@@ -51,13 +87,13 @@ colcon build --packages-select humanoid_hardware
 - Check orientation quaternion in `isaac_sim_training_env.py:45`
 - Should be `[0.7071, -0.7071, 0.0, 0.0]` for Blender Y-up → Isaac Z-up
 
-**Robot not visible:**
-- Verify `models/humanoid.glb` exists
-- Open `models/humanoid_articulated.usda` and check reference path
+**Robot visible but joints not moving:**
+- This is the mesh-binding issue (see above)
+- Need to re-export robot from Blender as USD format
 
 **Script hangs:**
 - Check Isaac Sim logs: `~/.local/share/ov/pkg/isaac_sim-*/logs/`
-- Try headless mode: edit `isaac_sim_training_env.py` → `SimulationApp({"headless": True})`
+- Try headless mode: edit script → `SimulationApp({"headless": True})`
 
 ### Jetson Hardware Issues
 
@@ -77,20 +113,20 @@ colcon build --packages-select humanoid_hardware
 ```
 biped_robot/
 ├── models/                          # 3D models
-│   ├── humanoid.glb                # Blender export
-│   ├── humanoid_articulated.usda   # Isaac Sim physics model
-│   ├── create_robot.py             # Model generator
+│   ├── humanoid.glb                # Blender export (35 mesh nodes)
+│   ├── humanoid_articulated.usda   # USD with physics (mesh-binding broken)
+│   ├── create_robot.py             # Blender robot generator
 │   └── export_usd.py               # USD exporter
 │
 ├── src/
 │   ├── humanoid_description/       # Robot URDF/USD
 │   └── humanoid_hardware/          # ROS 2 driver (Jetson)
 │
-├── setup_isaac_sim_robot.py        # GLB → USD converter
-├── isaac_sim_training_env.py       # ✅ Working training environment
-├── humanoid_direct_env.py          # ❌ Blocked (Isaac Lab issue)
-├── train_humanoid.py               # ❌ Blocked (depends on above)
-├── verify_hardware.py              # Hardware test script
+├── setup_isaac_sim_robot.py        # GLB → USD setup script
+├── isaac_sim_training_env.py       # Training environment
+├── humanoid_direct_env.py          # Isaac Lab DirectRLEnv (blocked)
+├── train_humanoid.py               # RL training (blocked)
+├── verify_hardware.py              # Hardware diagnostic
 ├── run_isaac.sh                    # Isaac Sim launcher
 │
 ├── README.md                       # This file
@@ -103,9 +139,12 @@ biped_robot/
 ## Development Notes
 
 **Workflow:**
-1. Train policy in Isaac Sim (Desktop: RTX 4070 Ti, 96GB RAM, Ubuntu 24.04)
-2. Export to ONNX/TensorRT
-3. Deploy to Jetson Orin Nano with ROS 2
+1. Fix mesh-binding issue (export from Blender as USD)
+2. Test joint control works
+3. Resume RL training development
+4. Train policy in Isaac Sim (Desktop: RTX 4070 Ti, 96GB RAM, Ubuntu 24.04)
+5. Export to ONNX/TensorRT
+6. Deploy to Jetson Orin Nano with ROS 2
 
 **Environment:** `isaaclab_env` (Python 3.11, Isaac Sim 5.1 via conda)
 

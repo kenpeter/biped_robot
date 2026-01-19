@@ -2,34 +2,101 @@
 
 ## Current Status (2026-01-19)
 
-**Working:** Isaac Sim basic training environment with PD controller demo
-**Blocked:** Isaac Lab DirectRLEnv multi-robot training (articulation registration fails)
+**Robot visible in Isaac Sim:** ✅ YES
+**Joints recognized:** ✅ YES (17 DOFs with correct names)
+**Joints moving:** ❌ NO (visuals not bound to physics)
+
+**Primary Issue:** Mesh-binding problem - visual meshes from GLB are not connected to physics links.
+
+---
+
+## USD/GLB Mesh-Binding Problem - INVESTIGATING
+
+### Symptoms
+- Robot loads and renders correctly in Isaac Sim
+- `ArticulationView` finds 17 DOFs with correct joint names
+- Joint position commands are sent
+- But robot visuals don't move - only physics simulation updates
+
+### Root Cause
+The USD file (`humanoid_articulated.usda`) references GLB as:
+```
+def Xform "Meshes" (
+    prepend references = @/home/kenpeter/work/biped_robot/models/humanoid.glb@
+)
+```
+
+This creates:
+- Visual meshes at `/Humanoid/Meshes/Head_Servo`, `/Humanoid/Meshes/L_Shoulder1`, etc. (35 meshes)
+- Physics links at `/Humanoid/base_link`, `/Humanoid/Head_Servo_link`, `/Humanoid/L_Shoulder1_link`, etc.
+- **No binding between visual meshes and physics links**
+
+When joints rotate, the physics links move, but the visual meshes stay in place because they are not parented to or bound with the physics bodies.
+
+### Evidence
+1. GLB has 35 mesh nodes (verified via Python script)
+2. USD has 17 DOFs recognized by ArticulationView
+3. Isaac Sim can render the GLB reference
+4. Standard USD library cannot load GLB directly (plugin missing)
+
+### Solutions Attempted
+1. ❌ USD GLB plugin not available in isaaclab_env
+2. ❌ Isaac Sim asset converter API changes blocking GLB→USD conversion
+3. ❌ Mesh-binding script failed (couldn't load GLB via USD)
+4. ❌ Direct USD reference to GLB works for rendering but not physics binding
+
+### Solutions to Try
+
+**Option A: Export from Blender as USD (RECOMMENDED)**
+- Blender 4.2+ has native USD export
+- File > Export > USD
+- Select "USDZ" or "USDA" format
+- This preserves mesh data in USD format, not as GLB reference
+
+**Option B: Use URDF Importer**
+- If robot has URDF file: `File > Import > URDF`
+- Isaac Sim's URDF importer handles physics binding automatically
+- Creates proper articulation structure
+
+**Option C: Isaac Sim "Create Reference"**
+- In Isaac Sim UI: `File > Create > Reference` (not `Open`)
+- This may handle binding better than direct USD reference syntax
+
+**Option D: Manual USD Creation**
+- Create USD with mesh data embedded (not referenced)
+- Use `UsdGeom.Mesh` to define meshes directly in USD
+- Parent meshes to physics links via `xformOp:transform`
 
 ---
 
 ## Recent Key Issues
+
+### USD/GLB Mesh-Binding - INVESTIGATING (2026-01-19)
+- **Issue:** Robot visible but joints don't move
+- **Cause:** Visual meshes from GLB reference not bound to physics links
+- **Files:** `models/humanoid_articulated.usda`, `models/humanoid.glb`
+- **Status:** Need to re-export robot from Blender as USD format
 
 ### Isaac Lab UI Observations - 2026-01-19
 - **Finding:** Isaac Lab UI launches but starts empty (no scene loaded)
 - **To load robot:** File > Open > `/home/kenpeter/work/biped_robot/models/humanoid_articulated.usda`
 - **Script execution:** Run scripts via `./run_isaac.sh script.py`
 
-### Isaac Lab Articulation Loading - BLOCKED (2026-01-19)
+### Isaac Lab Articulation Loading - FIXED (2026-01-19)
 - **Issue:** `Failed to find articulation at '/World/Humanoid'`
-- **Error:** `Pattern '/World/Humanoid' did not match any rigid bodies`
-- **Cause:** USD file physics schema not properly configured for Isaac Lab articulation views
-- **Files:** `test_quick.py`, `humanoid_direct_env.py`
-- **Path issue:** Scripts using wrong USD path (e.g., `/home/kenpeter/work/IsaacLab/models/` instead of `/home/kenpeter/work/biped_robot/models/`)
+- **Cause:** Scripts using `ArticulationView` before physics initialization
+- **Fix:** Use `World.reset()` and wait for `num_dof` to initialize
+- **Files:** `test_joint_final.py`
 
 ### Isaac Lab DirectRLEnv - BLOCKED (Earlier)
 - **Issue:** `KeyError: 'robot'` when accessing `self.scene.articulations["robot"]`
-- **Cause:** Incorrect ArticulationCfg/UsdFileCfg configuration for custom USD assets
+- **Cause:** Incorrect ArticulationCfg/UsdFileCfg configuration
 - **Files:** `humanoid_direct_env.py`, `train_humanoid.py`
-- **Status:** Requires investigation into Isaac Lab asset registration
+- **Status:** Requires mesh-binding fix first
 
 ### Servo Not Moving Issue - FIXED (2026-01-19)
 - **Issue:** Joints not responding to PD controller commands in Isaac Sim
-- **Cause:** Joint drive stiffness set to 0.0 in USD file (no position feedback)
+- **Cause:** Joint drive stiffness set to 0.0 in USD file
 - **Fix:** Set stiffness=500, damping=20 in joint drive API
 - **Files:** `setup_isaac_sim_robot.py:156`, `models/humanoid_articulated.usda`
 
