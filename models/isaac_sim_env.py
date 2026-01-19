@@ -1,18 +1,19 @@
-import gymnasium as gym
+
 import torch
-import os
-import argparse
-from datetime import datetime
-import numpy as np
 import math
+import os
+import numpy as np
+import gymnasium as gym
 
 from isaacsim import SimulationApp
 
-simulation_app = SimulationApp({"headless": False})
+simulation_app = SimulationApp({"headless": True})
 
 from omni.isaac.core import World
 from omni.isaac.core.articulations import Articulation
 from omni.isaac.core.utils.prims import create_prim
+
+f = open("/tmp/env_output.txt", "w")
 
 class HumanoidEnv:
     def __init__(self, num_envs=4, headless=True):
@@ -25,6 +26,8 @@ class HumanoidEnv:
         self._world.scene.add_default_ground_plane()
         
         usd_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "humanoid_articulated.usda")
+        f.write(f"Loading USD from: {usd_path}\n")
+        f.flush()
         
         spacing = 2.0
         self._robots = []
@@ -51,6 +54,8 @@ class HumanoidEnv:
                 )
             )
             self._robots.append(robot)
+            f.write(f"Created robot {env_idx} at {prim_path}\n")
+            f.flush()
         
         self._world.reset()
         
@@ -59,12 +64,8 @@ class HumanoidEnv:
         return self._robots[0].num_dof
     
     @property
-    def num_observations(self):
-        return 41
-    
-    @property
     def observation_space(self):
-        return gym.spaces.Box(low=-math.inf, high=math.inf, shape=(self.num_observations,))
+        return gym.spaces.Box(low=-math.inf, high=math.inf, shape=(42,))
     
     @property
     def action_space(self):
@@ -116,42 +117,28 @@ class HumanoidEnv:
         for robot in self._robots:
             root_pos, _ = robot.get_world_pose()
             root_height = root_pos[2]
-            died = bool(root_height < 0.15)
-            dones.append(torch.tensor(died, device=self.device))
+            died = root_height < 0.15
+            dones.append(died)
         return torch.stack(dones).cpu().numpy()
     
     def close(self):
         self._simulation_app.close()
 
-
-def main():
-    print("Setting up training...")
+if __name__ == "__main__":
     env = HumanoidEnv(num_envs=4, headless=True)
     
-    print(f"Created environment with {env.num_envs} robots!")
-    print(f"  Actions: {env.num_actions}")
-    print(f"  Observations: {env.num_observations}")
+    f.write(f"Number of actions: {env.num_actions}\n")
+    f.write("Testing environment...\n")
+    f.flush()
     
-    try:
-        for episode in range(5):
-            obs = env.reset()
-            total_reward = 0
-            for step in range(100):
-                actions = np.random.uniform(-1, 1, (env.num_envs, env.num_actions))
-                obs, reward, done, _ = env.step(actions)
-                total_reward += reward.mean()
-                
-                if step % 20 == 0:
-                    print(f"Episode {episode}, Step {step}: reward = {reward.mean():.4f}")
-            
-            print(f"Episode {episode} complete: avg reward = {total_reward/100:.4f}")
-            
-    except KeyboardInterrupt:
-        print("\nTraining stopped by user")
+    for i in range(10):
+        obs = env.reset()
+        f.write(f"Episode {i}: obs shape = {obs.shape}\n")
+        f.flush()
+    
+    f.write("Environment working!\n")
+    f.flush()
+    f.close()
     
     env.close()
-    print("Training complete!")
-
-
-if __name__ == "__main__":
-    main()
+    print("Test complete!")

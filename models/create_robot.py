@@ -171,11 +171,14 @@ bpy.context.active_object.data.energy = 120
 
 import os
 
+# Just render, skip GLB export (has Python conflict)
+output_dir = os.path.dirname(os.path.abspath(__file__))
+
 # Render
 bpy.context.scene.render.engine = 'BLENDER_EEVEE'
 bpy.context.scene.render.resolution_x = 800
 bpy.context.scene.render.resolution_y = 800
-bpy.context.scene.render.filepath = os.path.join(os.path.dirname(os.getcwd()), 'models', 'robot_render.png')
+bpy.context.scene.render.filepath = os.path.join(output_dir, 'robot_render.png')
 
 bpy.ops.render.render(write_still=True)
 print(f"Render saved to {bpy.context.scene.render.filepath}!")

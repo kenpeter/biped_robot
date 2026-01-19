@@ -1,6 +1,7 @@
 #usda 1.0
 (
     defaultPrim = "Humanoid"
+    upAxis = "Z"
 )
 
 def PhysicsScene "physicsScene"
@@ -21,6 +22,8 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsArticulationRootAPI", "PhysicsRigidBodyAPI", "PhysicsCollisionAPI", "PhysicsMassAPI"]
     )
     {
+        float3 xformOp:translate = (0, 0, 0.23)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 2.5
         bool physics:rigidBodyEnabled = 1
     }
@@ -29,10 +32,10 @@ def Xform "Humanoid"
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, 0, 0.125)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, 0.07999999821186066)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "head_joint" (
@@ -46,18 +49,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "Z"
         rel physics:body0 = </Humanoid/base_link>
         rel physics:body1 = </Humanoid/Head_Servo_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -1.57
+        float physics:upperLimit = 1.57
     }
 
     def Xform "L_Shoulder1_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, 0.06, 0.08)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0.05999999865889549, 0.05000000074505806)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "l_shoulder_pitch" (
@@ -71,18 +74,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/base_link>
         rel physics:body1 = </Humanoid/L_Shoulder1_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -2.0
+        float physics:upperLimit = 2.0
     }
 
     def Xform "L_Shoulder2_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, 0.105, 0.08)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0.03999999910593033, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "l_shoulder_roll" (
@@ -96,18 +99,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/L_Shoulder1_link>
         rel physics:body1 = </Humanoid/L_Shoulder2_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -2.0
+        float physics:upperLimit = 2.0
     }
 
     def Xform "L_Elbow_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, 0.105, -0.005)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.07999999821186066)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "l_forearm_roll" (
@@ -121,18 +124,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/L_Shoulder2_link>
         rel physics:body1 = </Humanoid/L_Elbow_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -2.0
+        float physics:upperLimit = 2.0
     }
 
     def Xform "R_Shoulder1_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, -0.06, 0.08)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, -0.05999999865889549, 0.05000000074505806)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "r_shoulder_pitch" (
@@ -146,18 +149,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/base_link>
         rel physics:body1 = </Humanoid/R_Shoulder1_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -2.0
+        float physics:upperLimit = 2.0
     }
 
     def Xform "R_Shoulder2_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, -0.105, 0.08)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, -0.03999999910593033, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "r_shoulder_roll" (
@@ -171,18 +174,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/R_Shoulder1_link>
         rel physics:body1 = </Humanoid/R_Shoulder2_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -2.0
+        float physics:upperLimit = 2.0
     }
 
     def Xform "R_Elbow_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, -0.105, -0.005)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.07999999821186066)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "r_forearm_roll" (
@@ -196,18 +199,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/R_Shoulder2_link>
         rel physics:body1 = </Humanoid/R_Elbow_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -2.0
+        float physics:upperLimit = 2.0
     }
 
     def Xform "L_Hip1_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, 0.038, -0.025)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0.03999999910593033, -0.05000000074505806)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "l_hip_roll" (
@@ -221,18 +224,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/base_link>
         rel physics:body1 = </Humanoid/L_Hip1_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -1.0
+        float physics:upperLimit = 1.0
     }
 
     def Xform "L_Hip2_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, 0.038, -0.075)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.03999999910593033)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "l_hip_pitch" (
@@ -246,18 +249,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/L_Hip1_link>
         rel physics:body1 = </Humanoid/L_Hip2_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -2.0
+        float physics:upperLimit = 0.5
     }
 
     def Xform "L_Knee_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, 0.038, -0.202)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.10000000149011612)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "l_knee_pitch" (
@@ -271,18 +274,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/L_Hip2_link>
         rel physics:body1 = </Humanoid/L_Knee_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = 0.0
+        float physics:upperLimit = 2.5
     }
 
     def Xform "L_Ankle_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.10000000149011612)
+        float3 xformOp:translate = (0, 0.038, -0.325)
         uniform token[] xformOpOrder = ["xformOp:translate"]
+        float physics:mass = 0.15
+        bool physics:rigidBodyEnabled = 1
     }
 
     def PhysicsRevoluteJoint "l_ankle_pitch" (
@@ -296,43 +299,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/L_Knee_link>
         rel physics:body1 = </Humanoid/L_Ankle_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "L_Foot_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
-    )
-    {
-        float physics:mass = 0.1
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.03999999910593033)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-    }
-
-    def PhysicsRevoluteJoint "l_foot_roll" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 10
-        float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "X"
-        rel physics:body0 = </Humanoid/L_Ankle_link>
-        rel physics:body1 = </Humanoid/L_Foot_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -1.0
+        float physics:upperLimit = 1.0
     }
 
     def Xform "R_Hip1_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, -0.038, -0.025)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, -0.03999999910593033, -0.05000000074505806)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "r_hip_roll" (
@@ -346,18 +324,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "X"
         rel physics:body0 = </Humanoid/base_link>
         rel physics:body1 = </Humanoid/R_Hip1_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -1.0
+        float physics:upperLimit = 1.0
     }
 
     def Xform "R_Hip2_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, -0.038, -0.075)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.03999999910593033)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "r_hip_pitch" (
@@ -371,18 +349,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/R_Hip1_link>
         rel physics:body1 = </Humanoid/R_Hip2_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -2.0
+        float physics:upperLimit = 0.5
     }
 
     def Xform "R_Knee_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
+        float3 xformOp:translate = (0, -0.038, -0.202)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
         float physics:mass = 0.2
         bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.10000000149011612)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
     }
 
     def PhysicsRevoluteJoint "r_knee_pitch" (
@@ -396,18 +374,18 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/R_Hip2_link>
         rel physics:body1 = </Humanoid/R_Knee_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = 0.0
+        float physics:upperLimit = 2.5
     }
 
     def Xform "R_Ankle_link" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
     )
     {
-        float physics:mass = 0.2
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.10000000149011612)
+        float3 xformOp:translate = (0, -0.038, -0.325)
         uniform token[] xformOpOrder = ["xformOp:translate"]
+        float physics:mass = 0.15
+        bool physics:rigidBodyEnabled = 1
     }
 
     def PhysicsRevoluteJoint "r_ankle_pitch" (
@@ -421,33 +399,8 @@ def Xform "Humanoid"
         uniform token physics:axis = "Y"
         rel physics:body0 = </Humanoid/R_Knee_link>
         rel physics:body1 = </Humanoid/R_Ankle_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
-    }
-
-    def Xform "R_Foot_link" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsCollisionAPI"]
-    )
-    {
-        float physics:mass = 0.1
-        bool physics:rigidBodyEnabled = 1
-        double3 xformOp:translate = (0, 0, -0.03999999910593033)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-    }
-
-    def PhysicsRevoluteJoint "r_foot_roll" (
-        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
-    )
-    {
-        float drive:angular:physics:damping = 10
-        float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 0
-        uniform token drive:angular:physics:type = "force"
-        uniform token physics:axis = "X"
-        rel physics:body0 = </Humanoid/R_Ankle_link>
-        rel physics:body1 = </Humanoid/R_Foot_link>
-        float physics:lowerLimit = -3.1415927
-        float physics:upperLimit = 3.1415927
+        float physics:lowerLimit = -1.0
+        float physics:upperLimit = 1.0
     }
 }
 
@@ -465,4 +418,3 @@ def "World"
         }
     }
 }
-
