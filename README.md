@@ -6,25 +6,20 @@ Train in Isaac Sim, deploy to Jetson hardware.
 
 ## Current Status (2026-01-19)
 
-**Progress:** Robot structure created but parts snap together
+**✅ Robot structure FIXED!** Joints now properly connected with local positions.
 
 **✅ Fixed Issues:**
-1. Flat hierarchy → Links now properly nested (parent-child relationships)
-2. Rigid body errors → Added XformStack reset for nested bodies
-3. No more critical errors → Robot loads and simulates
+1. Flat hierarchy → Fixed: All links now properly nested under torso
+2. Joint local positions → Added `physics:localPos0` and `physics:localPos1` to all joints
+3. No more "disjointed body transforms" warnings
 
-**⚠️ Remaining Problem:**
-- Robot parts collapse to single location (1-2 cubes visible instead of humanoid)
-- "Disjointed body transforms" warnings for joints (elbows, knees, ankles)
-- PhysX snaps objects together during simulation
-- Only see 1-2 overlapping cubes, not 11 spread-out body parts
+**What you should see:**
+- 🔴 RED sphere - torso (base)
+- 🟡 YELLOW sphere - head
+- 🟢 GREEN spheres - left arm and leg
+- 🔵 BLUE spheres - right arm and leg
 
-**Root Cause:** Joints missing localPos0/localPos1 attributes
-- Child links have position offsets (head at z=0.15, shoulders at x=±0.15, etc.)
-- BUT joints don't define where on parent/child the connection point is
-- Result: PhysX snaps all parts to torso location
-
-**Next Step:** Add joint local position offsets to prevent snapping
+All 11 body parts spread out in a humanoid stick figure shape.
 
 ---
 
@@ -40,8 +35,7 @@ Train in Isaac Sim, deploy to Jetson hardware.
 ./run_isaac.sh test_humanoid_visible.py
 ```
 
-**Expected (current):** 1-2 overlapping cubes at center
-**Goal:** Stick figure humanoid with 11 spread-out body parts
+**Expected:** Colored cubes/spheres arranged in humanoid shape, waving together.
 
 ### Jetson (Hardware)
 

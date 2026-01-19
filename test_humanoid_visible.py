@@ -25,7 +25,7 @@ world = World(stage_units_in_meters=1.0)
 world.scene.add_default_ground_plane()
 
 # Load robot USD
-robot_usd_path = os.path.join(os.getcwd(), "models/humanoid_articulated.usda")
+robot_usd_path = "/home/kenpeter/work/biped_robot/models/humanoid_articulated.usda"
 print(f"Loading robot from: {robot_usd_path}")
 
 # Add USD as reference to stage
