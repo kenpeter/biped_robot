@@ -1,9 +1,10 @@
 """
 Isaac Sim Setup Script for Humanoid Robot
-Converts GLB to articulated USD with physics and joints for RL training
+Creates articulated USD with EMBEDDED visible geometry (not GLB reference)
+This fixes the mesh-binding problem by creating geometry directly in USD
 
 Run from Isaac Sim:
-  /home/kenpeter/work/IsaacSim/python.sh setup_isaac_sim_robot.py
+  ./run_isaac.sh setup_isaac_sim_robot.py
 """
 
 from isaacsim import SimulationApp
@@ -12,51 +13,62 @@ from isaacsim import SimulationApp
 simulation_app = SimulationApp({"headless": True})
 
 import os
-from pxr import Usd, UsdGeom, UsdPhysics, UsdShade, Gf, Vt
-import omni.isaac.core.utils.stage as stage_utils
-from omni.isaac.core.articulations import ArticulationView
-from omni.isaac.core.utils.prims import create_prim, define_prim
-import omni
+from pxr import Usd, UsdGeom, UsdPhysics, Gf
+import math
 
 # Paths
 PROJECT_ROOT = os.getcwd()
-GLB_PATH = os.path.join(PROJECT_ROOT, "models/humanoid.glb")
 USD_OUTPUT = os.path.join(PROJECT_ROOT, "models/humanoid_articulated.usda")
 
 # Joint configuration
-# Format: (joint_name, parent_link, child_link, axis, lower_limit, upper_limit, offset_xyz)
-# NOTE: All servos have 360° rotation capability
+# Format: (joint_name, parent_link, child_link, axis, lower_limit, upper_limit, offset_xyz, visual_size)
 JOINT_CONFIG = [
     # HEAD
-    ("head_joint", "Torso_Main", "Head_Servo", "Z", -180, 180, (0, 0, 0.08)),
+    ("head_joint", "base_link", "Head_Servo", "Z", -180, 180, (0, 0, 0.08), 0.06),
 
     # LEFT ARM (y+ is left)
-    ("l_shoulder_pitch", "Torso_Main", "L_Shoulder1", "Y", -180, 180, (0, 0.06, 0.05)),
-    ("l_shoulder_roll", "L_Shoulder1", "L_Shoulder2", "X", -180, 180, (0, 0.04, 0)),
-    ("l_forearm_roll", "L_Shoulder2", "L_Elbow", "X", -180, 180, (0, 0, -0.08)),
+    ("l_shoulder_pitch", "base_link", "L_Shoulder1", "Y", -180, 180, (0, 0.06, 0.05), 0.05),
+    ("l_shoulder_roll", "L_Shoulder1", "L_Shoulder2", "X", -180, 180, (0, 0.04, 0), 0.04),
+    ("l_forearm_roll", "L_Shoulder2", "L_Elbow", "X", -180, 180, (0, 0, -0.08), 0.04),
 
     # RIGHT ARM (y- is right)
-    ("r_shoulder_pitch", "Torso_Main", "R_Shoulder1", "Y", -180, 180, (0, -0.06, 0.05)),
-    ("r_shoulder_roll", "R_Shoulder1", "R_Shoulder2", "X", -180, 180, (0, -0.04, 0)),
-    ("r_forearm_roll", "R_Shoulder2", "R_Elbow", "X", -180, 180, (0, 0, -0.08)),
+    ("r_shoulder_pitch", "base_link", "R_Shoulder1", "Y", -180, 180, (0, -0.06, 0.05), 0.05),
+    ("r_shoulder_roll", "R_Shoulder1", "R_Shoulder2", "X", -180, 180, (0, -0.04, 0), 0.04),
+    ("r_forearm_roll", "R_Shoulder2", "R_Elbow", "X", -180, 180, (0, 0, -0.08), 0.04),
 
     # LEFT LEG
-    ("l_hip_roll", "Torso_Bot_Plate", "L_Hip1", "X", -180, 180, (0, 0.04, -0.05)),
-    ("l_hip_pitch", "L_Hip1", "L_Hip2", "Y", -180, 180, (0, 0, -0.04)),
-    ("l_knee_pitch", "L_Hip2", "L_Knee", "Y", -180, 180, (0, 0, -0.10)),
-    ("l_ankle_pitch", "L_Knee", "L_Ankle", "Y", -180, 180, (0, 0, -0.10)),
-    ("l_foot_roll", "L_Ankle", "L_Foot", "X", -180, 180, (0, 0, -0.04)),
+    ("l_hip_roll", "base_link", "L_Hip1", "X", -180, 180, (0, 0.04, -0.05), 0.05),
+    ("l_hip_pitch", "L_Hip1", "L_Hip2", "Y", -180, 180, (0, 0, -0.04), 0.05),
+    ("l_knee_pitch", "L_Hip2", "L_Knee", "Y", -180, 180, (0, 0, -0.10), 0.04),
+    ("l_ankle_pitch", "L_Knee", "L_Ankle", "Y", -180, 180, (0, 0, -0.10), 0.04),
+    ("l_foot_roll", "L_Ankle", "L_Foot", "X", -180, 180, (0, 0, -0.04), 0.06),
 
     # RIGHT LEG
-    ("r_hip_roll", "Torso_Bot_Plate", "R_Hip1", "X", -180, 180, (0, -0.04, -0.05)),
-    ("r_hip_pitch", "R_Hip1", "R_Hip2", "Y", -180, 180, (0, 0, -0.04)),
-    ("r_knee_pitch", "R_Hip2", "R_Knee", "Y", -180, 180, (0, 0, -0.10)),
-    ("r_ankle_pitch", "R_Knee", "R_Ankle", "Y", -180, 180, (0, 0, -0.10)),
-    ("r_foot_roll", "R_Ankle", "R_Foot", "X", -180, 180, (0, 0, -0.04)),
+    ("r_hip_roll", "base_link", "R_Hip1", "X", -180, 180, (0, -0.04, -0.05), 0.05),
+    ("r_hip_pitch", "R_Hip1", "R_Hip2", "Y", -180, 180, (0, 0, -0.04), 0.05),
+    ("r_knee_pitch", "R_Hip2", "R_Knee", "Y", -180, 180, (0, 0, -0.10), 0.04),
+    ("r_ankle_pitch", "R_Knee", "R_Ankle", "Y", -180, 180, (0, 0, -0.10), 0.04),
+    ("r_foot_roll", "R_Ankle", "R_Foot", "X", -180, 180, (0, 0, -0.04), 0.06),
 ]
 
+def create_visible_link(stage, link_path, size, color):
+    """Create a link with embedded visible cube geometry"""
+    # Create the link xform
+    link = UsdGeom.Xform.Define(stage, link_path)
+
+    # Add visible cube as child
+    cube_path = f"{link_path}/visual"
+    cube = UsdGeom.Cube.Define(stage, cube_path)
+    cube.CreateSizeAttr(size)
+    cube.CreateDisplayColorAttr([color])
+
+    # Add collision to the cube
+    UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+
+    return link
+
 def create_articulated_robot():
-    """Create articulated robot from GLB with physics"""
+    """Create articulated robot with embedded visible geometry"""
 
     print("Creating new stage...")
     stage = Usd.Stage.CreateNew(USD_OUTPUT)
@@ -72,14 +84,20 @@ def create_articulated_robot():
     robot_prim = stage.DefinePrim("/Humanoid", "Xform")
     stage.SetDefaultPrim(robot_prim)
 
-    # Import GLB as payload (preserves mesh data)
-    print(f"Importing GLB from {GLB_PATH}...")
-    mesh_root = stage.DefinePrim("/Humanoid/Meshes", "Xform")
-    mesh_root.GetReferences().AddReference(GLB_PATH)
+    # Apply rotation: Blender Y-up to Isaac Z-up conversion
+    # Quaternion [w, x, y, z] = [0.7071, -0.7071, 0, 0] = -90° around X-axis
+    robot_xform = UsdGeom.Xform(robot_prim)
+    robot_xform.AddTranslateOp().Set(Gf.Vec3d(0, 0, 0.3))  # Lift robot above ground
+    robot_xform.AddOrientOp().Set(Gf.Quatf(0.7071, -0.7071, 0.0, 0.0))
 
-    # Create base link (torso)
-    print("Creating base link...")
-    base_link = UsdGeom.Xform.Define(stage, "/Humanoid/base_link")
+    # Create base link (torso) with visible cube
+    print("Creating base link with visible geometry...")
+    base_link = create_visible_link(
+        stage,
+        "/Humanoid/base_link",
+        size=0.15,
+        color=(0.8, 0.2, 0.2)  # Red torso
+    )
 
     # Make it an articulation root
     UsdPhysics.ArticulationRootAPI.Apply(base_link.GetPrim())
@@ -88,25 +106,35 @@ def create_articulated_robot():
     rigid_body = UsdPhysics.RigidBodyAPI.Apply(base_link.GetPrim())
     rigid_body.CreateRigidBodyEnabledAttr(True)
 
-    # Add collision approximation for base (torso)
-    collision_api = UsdPhysics.CollisionAPI.Apply(base_link.GetPrim())
-
     # Add mass properties to base
     mass_api = UsdPhysics.MassAPI.Apply(base_link.GetPrim())
     mass_api.CreateMassAttr(2.5)  # 2.5 kg torso
 
-    print(f"Creating {len(JOINT_CONFIG)} articulated joints...")
+    print(f"Creating {len(JOINT_CONFIG)} articulated joints with visible geometry...")
 
-    for joint_name, parent_name, child_name, axis, lower, upper, offset in JOINT_CONFIG:
+    # Colors for different body parts
+    colors = {
+        "Head": (0.9, 0.9, 0.3),      # Yellow
+        "L_": (0.2, 0.8, 0.2),         # Green (left side)
+        "R_": (0.2, 0.2, 0.8),         # Blue (right side)
+        "Foot": (0.5, 0.5, 0.5),       # Gray
+    }
+
+    for joint_name, parent_name, child_name, axis, lower, upper, offset, size in JOINT_CONFIG:
         print(f"  Creating joint: {joint_name} ({parent_name} -> {child_name})")
 
-        # Create link for this joint
+        # Determine color based on part name
+        color = (0.6, 0.6, 0.6)  # Default gray
+        for key, col in colors.items():
+            if key in child_name:
+                color = col
+                break
+
+        # Create link with visible geometry
         link_path = f"/Humanoid/{child_name}_link"
-        link = UsdGeom.Xform.Define(stage, link_path)
+        link = create_visible_link(stage, link_path, size, color)
 
         # Set relative position (offset from parent)
-        # Note: In USD physics, joint anchors define the pivot. Here we simplify by moving the child link.
-        # Ideally, we should set joint body0/body1 poses, but moving the child prim is a quick way to visualize structure.
         link.AddTranslateOp().Set(Gf.Vec3f(*offset))
 
         # Add rigid body
@@ -117,43 +145,38 @@ def create_articulated_robot():
         mass_api = UsdPhysics.MassAPI.Apply(link.GetPrim())
         if "Foot" in child_name or "Hand" in child_name:
             mass_api.CreateMassAttr(0.1)
-        elif "Leg" in child_name or "Arm" in child_name:
+        elif "Leg" in child_name or "Arm" in child_name or "Hip" in child_name:
             mass_api.CreateMassAttr(0.3)
         else:
             mass_api.CreateMassAttr(0.2)
-
-        # Add collision
-        collision_api = UsdPhysics.CollisionAPI.Apply(link.GetPrim())
 
         # Create revolute joint
         joint_path = f"/Humanoid/{joint_name}"
         joint = UsdPhysics.RevoluteJoint.Define(stage, joint_path)
 
         # Set parent and child relationships
-        if parent_name == "Torso_Main" or parent_name == "Torso_Bot_Plate":
+        parent_path = f"/Humanoid/{parent_name}"
+        if parent_name == "base_link":
             parent_path = "/Humanoid/base_link"
-        else:
-            parent_path = f"/Humanoid/{parent_name}_link"
 
         joint.CreateBody0Rel().SetTargets([parent_path])
         joint.CreateBody1Rel().SetTargets([link_path])
 
-        # Set joint axis (UsdPhysics expects "X", "Y", "Z" token)
+        # Set joint axis
         joint.CreateAxisAttr(axis)
 
         # Set joint limits (convert degrees to radians)
-        import math
         lower_rad = math.radians(lower)
         upper_rad = math.radians(upper)
         joint.CreateLowerLimitAttr(lower_rad)
         joint.CreateUpperLimitAttr(upper_rad)
 
-        # Add drive for actuation (DIRECT EFFORT CONTROL - no spring)
+        # Add drive for actuation (EFFORT CONTROL - no stiffness spring)
         drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular")
         drive.CreateTypeAttr("force")
-        drive.CreateMaxForceAttr(100.0)    # Max torque: 100 N⋅m
-        drive.CreateDampingAttr(20.0)      # Moderate damping: 20 N⋅m⋅s/rad
-        drive.CreateStiffnessAttr(500.0)    # Position control with strong stiffness
+        drive.CreateMaxForceAttr(50.0)      # Max torque: 50 N⋅m
+        drive.CreateDampingAttr(1.0)        # Low damping for smooth motion
+        drive.CreateStiffnessAttr(0.0)      # NO spring - pure effort control
 
     # Add ground plane for training
     print("Adding ground plane...")
@@ -168,6 +191,7 @@ def create_articulated_robot():
     ground_geom.CreatePointsAttr(points)
     ground_geom.CreateFaceVertexCountsAttr([4])
     ground_geom.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+    ground_geom.CreateDisplayColorAttr([(0.3, 0.3, 0.3)])  # Dark gray
 
     # Add collision to ground
     UsdPhysics.CollisionAPI.Apply(ground_geom.GetPrim())
@@ -176,19 +200,18 @@ def create_articulated_robot():
     print(f"Saving articulated robot to {USD_OUTPUT}...")
     stage.Save()
     print("Done! Robot ready for Isaac Sim training.")
+    print(f"\nRobot created with EMBEDDED visible geometry (not GLB reference)")
+    print(f"  - Base link: RED cube")
+    print(f"  - Head: YELLOW cube")
+    print(f"  - Left arm/leg: GREEN cubes")
+    print(f"  - Right arm/leg: BLUE cubes")
+    print(f"  - Feet: GRAY cubes")
     print(f"\nTo use in Isaac Sim:")
-    print(f"  1. Launch Isaac Sim")
-    print(f"  2. File -> Open: {USD_OUTPUT}")
-    print(f"  3. Press Play to test physics")
+    print(f"  1. ./run_isaac.sh test_joint_final.py")
+    print(f"  2. You should see COLORED CUBES moving")
 
     simulation_app.close()
     return stage
 
 if __name__ == "__main__":
-    # Check if GLB exists
-    if not os.path.exists(GLB_PATH):
-        print(f"ERROR: GLB file not found at {GLB_PATH}")
-        print("Run 'blender --background --python export_model.py' first")
-        exit(1)
-
     create_articulated_robot()
