@@ -5,7 +5,7 @@
 
 # Path to IsaacLab (relative to this script)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-ISAACLAB_DIR="$SCRIPT_DIR/../IsaacLab"
+ISAACLAB_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)/IsaacLab"
 
 # Check if IsaacLab exists
 if [ ! -d "$ISAACLAB_DIR" ]; then
