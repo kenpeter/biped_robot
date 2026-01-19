@@ -53,17 +53,19 @@ cd /home/kenpeter/work/biped_robot
 ```
 biped_robot/
 ├── models/
-│   ├── humanoid_articulated.usda   # ✅ Robot USD with 12 cubes in flat structure
-│   └── robot.png                    # Reference image for robot structure
+│   ├── humanoid_articulated.usda   # Robot USD with 17 DOF physics + GLB mesh
+│   └── humanoid.glb                 # 3D mesh visual (from Blender)
 │
 ├── src/
 │   ├── humanoid_description/        # URDF/ROS robot description
 │   └── humanoid_hardware/           # ROS 2 driver for Jetson
 │
-├── setup_isaac_sim_robot.py        # Generates USD from robot.png structure
-├── test_humanoid_visible.py        # Test script to view robot with GUI
-├── run_isaac.sh                     # Isaac Sim launcher
+├── test_humanoid_visible.py        # Test robot in Isaac Sim (with wave motion)
+├── isaac_sim_training_env.py       # RL training environment
+├── train_humanoid.py                # Training script
+├── verify_hardware.py               # Hardware test for Jetson
 │
+├── run_isaac.sh                     # Isaac Sim launcher script
 ├── README.md                        # This file
 ├── MEMORY.md                        # Development notes
 └── CLAUDE.md                        # Claude AI instructions
@@ -71,60 +73,60 @@ biped_robot/
 
 ---
 
-## Robot Hierarchy (FLAT sibling structure)
+## Robot Structure
 
-```
-/Robot/
-├── torso (RED, z=0, size=0.24) [ArticulationRoot]
-├── head (YELLOW, z=0.3, size=0.16)
-├── l_shoulder (GREEN, x=-0.3, z=0.1, size=0.12)
-├── l_elbow (GREEN, x=-0.6, z=0.1, size=0.10)
-├── r_shoulder (BLUE, x=0.3, z=0.1, size=0.12)
-├── r_elbow (BLUE, x=0.6, z=0.1, size=0.10)
-├── l_hip (GREEN, x=-0.15, z=-0.3, size=0.12)
-├── l_knee (GREEN, x=-0.15, z=-0.6, size=0.10)
-├── l_ankle (GREEN, x=-0.15, z=-0.9, size=0.10)
-├── r_hip (BLUE, x=0.15, z=-0.3, size=0.12)
-├── r_knee (BLUE, x=0.15, z=-0.6, size=0.10)
-└── r_ankle (BLUE, x=0.15, z=-0.9, size=0.10)
-```
+**17 DOF Articulated Humanoid:**
+- HEAD: 1 joint (head_joint - Z axis rotation)
+- LEFT ARM: 3 joints (shoulder_pitch, shoulder_roll, forearm_roll)
+- RIGHT ARM: 3 joints (shoulder_pitch, shoulder_roll, forearm_roll)
+- LEFT LEG: 5 joints (hip_roll, hip_pitch, knee_pitch, ankle_pitch, foot_roll)
+- RIGHT LEG: 5 joints (hip_roll, hip_pitch, knee_pitch, ankle_pitch, foot_roll)
 
-**Total: 12 cubes with 11 revolute joints**
+**Physics:**
+- Flat sibling structure (all links as siblings under /Humanoid)
+- GLB mesh for visuals
+- USD articulation for physics simulation
+- PD controllers on all joints (damping=10, maxForce=100)
 
 ---
 
 ## Development Commands
 
 ```bash
-# Regenerate robot USD from robot.png structure
-./run_isaac.sh setup_isaac_sim_robot.py
-
-# Test robot with GUI (view movement)
+# Test robot with GUI (wave motion demo)
 ./run_isaac.sh test_humanoid_visible.py
+
+# Run RL training environment
+./run_isaac.sh isaac_sim_training_env.py
+
+# Train robot (PPO/SAC)
+./run_isaac.sh train_humanoid.py
 
 # Check USD file structure
 head -100 models/humanoid_articulated.usda
 
-# Verify cubes in flat structure
-grep -E "(def Xform|def Cube|xformOp:translate)" models/humanoid_articulated.usda
+# Verify hardware on Jetson
+python3 verify_hardware.py
 ```
 
 ---
 
 ## Troubleshooting
 
+### Robot sideways or half in ground?
+- Robot uses Blender Y-up coordinate system
+- Runtime fix applied: +90° X rotation at spawn time
+- Position: 15cm above ground (`[0, 0, 0.15]`)
+
+### Joints don't move visually?
+- GLB mesh may not be bound to physics joints
+- Joints work (check DOF count: 17) but mesh stays static
+- This is a known limitation - mesh binding needs setup
+
 ### Robot not visible?
-- Check Isaac Sim viewport - may need to zoom/pan
-- Click "Show All" in viewport or press F
-- Verify USD was regenerated with cubes (not spheres)
-
-### Parts in wrong position?
-- Regenerate USD: `./run_isaac.sh setup_isaac_sim_robot.py`
-- Should match robot.png with cubes spread out in flat sibling structure
-
-### Parts snap together?
-- This means nested hierarchy was used - regenerate with flat structure
-- All body parts must be siblings under /Robot with absolute world positions
+- Press F in Isaac Sim viewport to frame robot
+- Check console for USD loading errors
+- Verify `models/humanoid.glb` exists (57KB)
 
 ---
 

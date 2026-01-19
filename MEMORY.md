@@ -2,15 +2,23 @@
 
 ## Current Status (2026-01-19)
 
-**✅ Robot is UPRIGHT and all parts visible!**
+**✅ Project cleaned up - 5 focused scripts + working 17-DOF robot**
 
-12 body parts as colored cubes in standing humanoid pose:
-- Torso (RED, center) - upright stance
-- Head (YELLOW) - above torso
-- L-Shoulder, L-Elbow, L-Hip, L-Knee, L-Ankle (GREEN) - left side standing
-- R-Shoulder, R-Elbow, R-Hip, R-Knee, R-Ankle (BLUE) - right side standing
+**Robot:**
+- Restored working USD from git commit a7d1930
+- 17 DOF articulated humanoid with GLB mesh
+- Flat sibling structure (all links under /Humanoid)
+- Runtime orientation fix: +90° X rotation (Blender Y-up → Isaac Z-up)
+- Spawns 15cm above ground
 
-All parts are siblings under /Robot with absolute world positions - robot is standing upright!
+**Scripts (5 total):**
+- `test_humanoid_visible.py` - Test robot with wave motion
+- `isaac_sim_training_env.py` - RL training environment
+- `train_humanoid.py` - Training script
+- `humanoid_direct_env.py` - Isaac Lab DirectRLEnv
+- `verify_hardware.py` - Hardware verification for Jetson
+
+**Known Issue:** GLB mesh doesn't move with joints (skeleton binding not set up)
 
 ---
 
@@ -22,74 +30,85 @@ All parts are siblings under /Robot with absolute world positions - robot is sta
 
 **Test with GUI:**
 ```bash
-cd /home/kenpeter/work/biped_robot
 ./run_isaac.sh test_humanoid_visible.py
-```
-
-**Regenerate USD:**
-```bash
-./run_isaac.sh setup_isaac_sim_robot.py
 ```
 
 ---
 
-## Fix History
+## Cleanup History
 
-### 2026-01-19: Changed to CUBES in FLAT sibling structure
+### 2026-01-19: Project Cleanup
 
-**Problem:** Robot used spheres instead of cubes, and nested hierarchy caused parts to snap together.
+**Removed:**
+- `.gemini/` directory
+- `node_modules/` (needs manual removal with sudo - owned by root)
+- `package.json`, `package-lock.json` (needs sudo)
+- Redundant test scripts:
+  - `launch_robot.py`
+  - `simple_test.py`
+  - `test_quick_verify.py`
+  - `test_visibility.py`
+  - `setup_isaac_sim_robot.py`
 
-**Solution:** Complete rewrite of setup_isaac_sim_robot.py:
-- Changed from UsdGeom.Sphere to UsdGeom.Cube (robot.png shows cubes!)
-- All 12 body parts created as SIBLINGS under /Robot (not nested)
-- Each part has absolute world position coordinates
-- Prevents PhysX from snapping parts together at single location
-- Joints connect between siblings using body0/body1 relationships
+**Result:** Clean project with 5 focused scripts instead of 10
 
-**USD Structure (FLAT):**
-```
-/Robot/
-├── torso (RED, z=0, size=0.24) [ArticulationRoot]
-├── head (YELLOW, z=0.3, size=0.16)
-├── l_shoulder (GREEN, x=-0.3, z=0.1, size=0.12)
-├── l_elbow (GREEN, x=-0.6, z=0.1, size=0.10)
-├── r_shoulder (BLUE, x=0.3, z=0.1, size=0.12)
-├── r_elbow (BLUE, x=0.6, z=0.1, size=0.10)
-├── l_hip (GREEN, x=-0.15, z=-0.3, size=0.12)
-├── l_knee (GREEN, x=-0.15, z=-0.6, size=0.10)
-├── l_ankle (GREEN, x=-0.15, z=-0.9, size=0.10)
-├── r_hip (BLUE, x=0.15, z=-0.3, size=0.12)
-├── r_knee (BLUE, x=0.15, z=-0.6, size=0.10)
-└── r_ankle (BLUE, x=0.15, z=-0.9, size=0.10)
-```
+### 2026-01-19: Restored Working Robot
 
-**Key Technical Insight:**
-- NESTED hierarchy (parent→child links) causes PhysX to snap parts together due to transform accumulation
-- FLAT sibling structure with absolute positions keeps parts spread out correctly
-- Joints reference sibling paths via body0/body1 relationships
+**Problem:** Robot was lying sideways, half in ground, mesh not moving
 
-### 2026-01-19 (Earlier): Attempted nested hierarchy
+**Solution:**
+- Restored USD from commit a7d1930 (working 17-DOF version)
+- Applied runtime orientation fix in test script:
+  - Position: `[0, 0, 0.15]` (15cm above ground)
+  - Orientation: `[0.7071, 0.7071, 0, 0]` (+90° X rotation)
+- This matches `isaac_sim_training_env.py` spawn configuration
 
-**Problem:** Nested parent-child link structure caused "disjointed body transforms" and parts snapped to single location.
+---
 
-**Learning:** PhysX articulation works better with flat sibling structure for USD-based robots.
+## Robot Structure (17 DOF)
+
+**Joint Breakdown:**
+- HEAD: 1 joint (head_joint - Z axis)
+- LEFT ARM: 3 joints (shoulder_pitch, shoulder_roll, forearm_roll)
+- RIGHT ARM: 3 joints (shoulder_pitch, shoulder_roll, forearm_roll)
+- LEFT LEG: 5 joints (hip_roll, hip_pitch, knee_pitch, ankle_pitch, foot_roll)
+- RIGHT LEG: 5 joints (hip_roll, hip_pitch, knee_pitch, ankle_pitch, foot_roll)
+
+**Physics:**
+- Flat sibling structure (all links as siblings under /Humanoid)
+- GLB mesh reference: `models/humanoid.glb` (57KB)
+- PD controllers: damping=10, maxForce=100
+- Full 360° rotation on all joints
 
 ---
 
 ## Quick Commands
 
 ```bash
-# Regenerate robot from robot.png structure
-./run_isaac.sh setup_isaac_sim_robot.py
-
-# Test robot with GUI
+# Test robot (wave motion demo)
 ./run_isaac.sh test_humanoid_visible.py
 
-# Check structure (should show CUBES)
-grep -E "(def Xform|def Cube|xformOp:translate)" models/humanoid_articulated.usda
+# RL training environment
+./run_isaac.sh isaac_sim_training_env.py
 
-# Count cubes (should be 12)
-grep -c "def Cube" models/humanoid_articulated.usda
+# Check robot structure
+head -100 models/humanoid_articulated.usda
+
+# Count joints
+grep -c "def PhysicsRevoluteJoint" models/humanoid_articulated.usda
+# Should output: 17
+
+# Verify hardware on Jetson
+python3 verify_hardware.py
+```
+
+---
+
+## Manual Cleanup Needed
+
+**Root-owned files (require sudo):**
+```bash
+sudo rm -rf node_modules/ package.json package-lock.json
 ```
 
 ---
@@ -99,29 +118,35 @@ grep -c "def Cube" models/humanoid_articulated.usda
 ```
 biped_robot/
 ├── models/
-│   ├── humanoid_articulated.usda   # Robot USD with 12 cubes
-│   └── robot.png                    # Reference image for structure
-│
-├── setup_isaac_sim_robot.py        # Generates USD from robot.png
-├── test_humanoid_visible.py        # Test script with GUI
-├── run_isaac.sh                     # Isaac Sim launcher
-│
-├── README.md                        # User documentation
-├── MEMORY.md                        # This file - development notes
-└── CLAUDE.md                        # Claude AI instructions
+│   ├── humanoid_articulated.usda   # 17-DOF robot with physics
+│   └── humanoid.glb                 # Visual mesh (57KB)
+├── src/
+│   ├── humanoid_description/        # URDF/ROS description
+│   └── humanoid_hardware/           # ROS 2 driver for Jetson
+├── test_humanoid_visible.py        # Main test script
+├── isaac_sim_training_env.py       # RL environment
+├── train_humanoid.py                # Training
+├── humanoid_direct_env.py          # Isaac Lab env
+├── verify_hardware.py               # Hardware test
+├── run_isaac.sh                     # Launcher
+├── README.md
+├── MEMORY.md                        # This file
+└── CLAUDE.md                        # AI instructions
 ```
 
 ---
 
 ## Known Issues
 
-**Resolved:**
-- ✅ Parts snapping together → use flat sibling structure (2026-01-19)
-- ✅ Using spheres instead of cubes → changed to UsdGeom.Cube (2026-01-19)
-- ✅ Nested hierarchy causing transform issues → flat structure (2026-01-19)
-- ✅ xformOpOrder missing (2026-01-19 earlier)
+**Current:**
+- GLB mesh doesn't follow joint motion (skeleton binding not set up)
+- Joints work (physics), but visual mesh stays static
+- node_modules/ owned by root (needs manual sudo removal)
 
-**None currently!**
+**Resolved:**
+- ✅ Robot orientation (2026-01-19) - runtime +90° X rotation fix
+- ✅ Robot position (2026-01-19) - spawn 15cm above ground
+- ✅ Project cleanup (2026-01-19) - removed redundant scripts
 
 ---
 

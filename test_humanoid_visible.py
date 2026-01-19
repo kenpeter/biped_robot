@@ -17,7 +17,7 @@ simulation_app = SimulationApp({"headless": False})
 
 from omni.isaac.core import World
 from omni.isaac.core.articulations import Articulation
-from omni.isaac.core.utils.stage import add_reference_to_stage
+from omni.isaac.core.utils.prims import create_prim
 
 # Create world
 print("\nCreating world...")
@@ -28,9 +28,15 @@ world.scene.add_default_ground_plane()
 robot_usd_path = "/home/kenpeter/work/biped_robot/models/humanoid_articulated.usda"
 print(f"Loading robot from: {robot_usd_path}")
 
-# Add USD as reference to stage
+# Spawn robot with orientation fix (Blender Y-up to Isaac Sim Z-up)
 prim_path = "/World/Robot"
-add_reference_to_stage(usd_path=robot_usd_path, prim_path=prim_path)
+create_prim(
+    prim_path=prim_path,
+    prim_type="Xform",
+    usd_path=robot_usd_path,
+    position=np.array([0.0, 0.0, 0.15]),  # 15cm above ground
+    orientation=np.array([0.7071, 0.7071, 0.0, 0.0])  # +90° X rotation (w, x, y, z)
+)
 
 # Add robot articulation to scene
 robot = world.scene.add(
