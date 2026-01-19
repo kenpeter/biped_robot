@@ -94,6 +94,9 @@ biped_robot/
 cd /home/kenpeter/work/IsaacLab && ./isaaclab.sh -s
 # Then: File > Open > /home/kenpeter/work/biped_robot/models/humanoid_articulated.usda
 
+# Test joint control
+./run_isaac.sh test_joint_final.py           # Test if joints respond to commands
+
 # Jetson - Hardware Control
 python3 verify_hardware.py                   # Test servos
 ros2 launch humanoid_hardware robot_control.launch.py
@@ -104,18 +107,68 @@ colcon build --packages-select humanoid_hardware
 
 ---
 
+## USD File Structure Issue - INVESTIGATING (2026-01-19)
+
+**Problem:** Robot visible but joints not responding to commands
+
+**Root Cause Analysis:**
+1. GLB file contains 35 mesh nodes (Head_Servo, L_Shoulder1, L_Shoulder2, etc.)
+2. USD file references GLB as a single reference in `/Humanoid/Meshes`
+3. Physics links (base_link, Head_Servo_link, etc.) are separate xforms with physics schemas
+4. Visual meshes are NOT bound to physics links - they're just referenced together
+
+**Evidence:**
+- USD can't load GLB directly: "Cannot determine file format for @humanoid.glb@"
+- Isaac Sim imports GLB as reference but mesh-binding is lost
+- Articulation has 17 DOFs recognized, but visuals don't move with joints
+
+**Solutions Tried:**
+1. ✅ Isaac Sim can load the USD with GLB reference (visuals appear)
+2. ❌ USD library can't open GLB directly (plugin missing)
+3. ❌ GLB to USD converter not working (API issues)
+4. ❌ Mesh-to-link binding script failed (GLB not loadable)
+
+**Alternative Approaches:**
+1. Export robot from Blender as USD (not GLB)
+2. Use URDF importer which handles physics bindings automatically
+3. Manually create USD with USD-formatted meshes (not GLB reference)
+4. Use Isaac Sim's "Create Reference" dialog which may handle bindings
+
+---
+
 ## Known Issues
 
 **Active:**
-- ⚠️ Isaac Lab articulation loading (USD physics schema not recognized by ArticulationView)
+- ⚠️ **USD/GLB mesh-binding issue (CRITICAL)**: Robot visible but joints don't move
+  - Root cause: Visual meshes (from GLB) not bound to physics links
+  - Articulation recognized (17 DOFs) but visuals don't follow physics
+  - Need to either: (1) Export from Blender as USD, (2) Use URDF importer, or (3) Fix GLB binding
 - ⚠️ Isaac Lab DirectRLEnv asset registration (blocking multi-robot training)
-- ⚠️ Robot falls in simulation (expected - needs RL training)
-- ⚠️ test_quick.py has wrong USD path
 
 **Resolved:**
+- ✅ Isaac Lab UI launches successfully
+- ✅ Robot USD loads and shows visual meshes
+- ✅ ArticulationView finds 17 DOFs with correct joint names
+- ✅ Script paths fixed (were pointing to wrong directories)
 - ✅ Servos not moving in simulation (2026-01-19)
 - ✅ 90° rotation bug (2026-01-18)
-- ✅ Script execution/logging issues (2026-01-18)
+
+---
+
+## Next Steps
+
+1. **Fix mesh-binding issue:**
+   - Option A: Re-export robot from Blender as USD format (not GLB)
+   - Option B: Use Isaac Sim URDF importer on robot's URDF
+   - Option C: Manually create USD with embedded mesh geometry
+
+2. **Test joint control:**
+   - Run `./run_isaac.sh test_joint_final.py`
+   - Watch if robot joints actually move
+
+3. **Once joints work:**
+   - Resume RL training development
+   - Fix DirectRLEnv configuration
 
 ---
 
