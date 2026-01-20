@@ -1,0 +1,30 @@
+# Joint name → Hiwonder servo channel mapping
+# Based on hardware: Hiwonder LSC-24 on /dev/ttyUSB1 @ 9600 baud
+
+head:
+  head_joint: 0  # Head pan (left/right)
+
+left_arm:
+  l_shoulder_pitch: 1   # Forward/backward
+  l_shoulder_roll: 2    # Close/away from body
+  l_forearm_roll: 3     # Forearm rotation
+
+right_arm:
+  r_shoulder_pitch: 12  # Forward/backward
+  r_shoulder_roll: 13   # Close/away from body
+  r_forearm_roll: 14    # Forearm rotation
+
+left_leg:
+  l_hip_roll: 4         # Close/away from body
+  l_knee_pitch: 5       # Forward/backward
+  l_ankle_pitch: 6      # Forward/backward
+  l_foot_roll: 7        # Close/away from body
+
+right_leg:
+  r_hip_roll: 15        # Close/away from body
+  r_knee_pitch: 16      # Forward/backward
+  r_ankle_pitch: 17     # Forward/backward
+  r_foot_roll: 18       # Close/away from body
+
+# Servo position range: 500-2500 (maps to 0-180 degrees)
+# Joint limits should match between USD and hardware
