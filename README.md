@@ -71,19 +71,18 @@ cd /home/kenpeter/work/biped_robot/models
 ```
 biped_robot/
 ├── models/
-│   ├── 15dof.png                      # Robot diagram (15 DOF)
-│   ├── humanoid.glb                   # 3D mesh visual (from scanner)
-│   ├── head_robot.usda                # Head servo test robot (1 DOF)
-│   ├── load_humanoid.py               # Launch Isaac Sim with full robot
-│   ├── demo_head_servo.py             # Demo head servo movement
-│   ├── train_head_servo.py            # Train head servo with RL
-│   └── run_isaac.sh                   # Isaac Sim launcher script
+│   ├── head_robot.usda                # Head servo robot (1 DOF, fixed base)
+│   ├── load_humanoid.py               # View full robot in Isaac Sim
+│   ├── train_head.py                  # Train: oscillate ±30° in Isaac Sim
+│   ├── demo_head.py                   # Demo: visualize trained behavior
+│   ├── deploy_to_jetson.py            # Deploy: run on Jetson hardware
+│   ├── run_isaac.sh                   # Isaac Sim launcher
+│   ├── humanoid.glb                   # 3D mesh (from 3D scanner)
+│   └── 15dof.png                      # Robot diagram
 │
 ├── src/
-│   ├── humanoid_description/
-│   │   └── usd/
-│   │       └── humanoid.usda          # 15-DOF full robot model
-│   └── humanoid_hardware/             # ROS 2 driver for Jetson
+│   ├── humanoid_description/usd/humanoid.usda  # 15-DOF full model
+│   └── humanoid_hardware/                      # ROS 2 Jetson driver
 │
 ├── README.md                          # This file
 └── CLAUDE.md                          # Claude AI instructions
@@ -116,20 +115,24 @@ biped_robot/
 
 ---
 
-## Commands
+## Workflow: Train → Deploy
 
+### 1. Train in Isaac Sim
 ```bash
-# Navigate to models directory
 cd /home/kenpeter/work/biped_robot/models
+./run_isaac.sh train_head.py    # Train ±30° oscillation
+./run_isaac.sh demo_head.py      # Visualize behavior
+```
 
-# Launch Isaac Sim with humanoid robot
-./run_isaac.sh load_humanoid.py
+### 2. Deploy to Jetson
+```bash
+# On Jetson Nano
+python3 deploy_to_jetson.py      # Run on real servo
+```
 
-# Train head servo
-./run_isaac.sh train_head_servo.py
-
-# Demo head servo movement
-./run_isaac.sh demo_head_servo.py
+### 3. View Full Robot
+```bash
+./run_isaac.sh load_humanoid.py  # 15-DOF humanoid model
 ```
 
 ---
