@@ -34,28 +34,21 @@
 
 ---
 
-## Current Status (2026-01-19)
+## Robot Model
 
-**✅ Robot model visible in Isaac Sim!**
+**Location:** `src/humanoid_description/usd/humanoid.usda`
 
-Simplified robot structure as colored cubes in standing humanoid pose:
-- 🔴 **RED** - Torso (center, z=0.3m)
-- 🟡 **YELLOW** - Head (above torso)
-- 🟢 **GREEN** - Left arm (at sides) + Left leg (standing vertical)
-- 🔵 **BLUE** - Right arm (at sides) + Right leg (standing vertical)
+**Mesh:** `models/humanoid.glb` (35 geometries from Blender scan)
 
----
-
-## Robot File Location
-
+**Structure (15 DOF):**
 ```
-/home/kenpeter/work/biped_robot/models/humanoid_articulated.usda
-```
-
-**Test with GUI:**
-```bash
-cd /home/kenpeter/work/biped_robot
-./models/run_isaac.sh models/test_humanoid_visible.py
+/World/robot
+  - mesh (GLB reference)
+  - head (1 DOF) - Y axis, ±60°
+  - l_shoulder (2 DOF) - Y axis, ±90° + X axis, ±180°
+  - r_shoulder (2 DOF) - Y axis, ±90° + X axis, ±180°
+  - l_hip (4 DOF) - X axis, ±45° + Y axis, -120°~0° + Y axis, ±45° + X axis, ±30°
+  - r_hip (4 DOF) - X axis, ±45° + Y axis, -120°~0° + Y axis, ±45° + X axis, ±30°
 ```
 
 ---
@@ -65,16 +58,11 @@ cd /home/kenpeter/work/biped_robot
 ### View Robot in Isaac Sim
 
 ```bash
-cd /home/kenpeter/work/biped_robot
-./models/run_isaac.sh models/test_humanoid_visible.py
+cd /home/kenpeter/work/biped_robot/models
+./run_isaac.sh load_humanoid.py
 ```
 
-**Expected:** Isaac Sim opens with UI showing humanoid robot:
-- Red cube at center (torso)
-- Yellow cube above (head)
-- Green cubes on left (arm + leg)
-- Blue cubes on right (arm + leg)
-- All parts spread out in humanoid stick-figure formation
+**Expected:** Isaac Sim opens showing humanoid robot with GLB mesh.
 
 ---
 
@@ -83,127 +71,79 @@ cd /home/kenpeter/work/biped_robot
 ```
 biped_robot/
 ├── models/
-│   ├── humanoid_articulated.usda      # Robot USD with 17 DOF physics
-│   ├── humanoid.glb                   # 3D mesh visual (from Blender)
-│   ├── humanoid_robot.blend           # Blender source file
-│   ├── test_humanoid_visible.py       # Test robot in Isaac Sim
-│   ├── isaac_sim_training_env.py      # RL training environment
-│   ├── train_humanoid.py              # Training script
-│   └── humanoid_direct_env.py         # Isaac Lab DirectRLEnv
+│   ├── 15dof.png                      # Robot diagram (15 DOF)
+│   ├── humanoid.glb                   # 3D mesh visual (from scanner)
+│   ├── head_robot.usda                # Head servo test robot (1 DOF)
+│   ├── load_humanoid.py               # Launch Isaac Sim with full robot
+│   ├── demo_head_servo.py             # Demo head servo movement
+│   ├── train_head_servo.py            # Train head servo with RL
+│   └── run_isaac.sh                   # Isaac Sim launcher script
 │
 ├── src/
-│   ├── humanoid_description/          # URDF/ROS robot description
+│   ├── humanoid_description/
+│   │   └── usd/
+│   │       └── humanoid.usda          # 15-DOF full robot model
 │   └── humanoid_hardware/             # ROS 2 driver for Jetson
 │
-├── verify_hardware.py                 # Hardware test for Jetson
 ├── README.md                          # This file
-├── MEMORY.md                          # Development notes
 └── CLAUDE.md                          # Claude AI instructions
 ```
 
 ---
 
-## Robot Structure (15 DOF)
+## Joint Mapping
 
-**Joint Breakdown:**
-- **HEAD:** 1 servo - head_joint (left/right rotation, Z-axis)
-- **LEFT ARM:** 3 servos
-  - l_shoulder_pitch (forward/backward, Y-axis)
-  - l_shoulder_roll (close/away from body, X-axis)
-  - l_forearm_roll (close/away from body, X-axis)
-- **RIGHT ARM:** 3 servos
-  - r_shoulder_pitch (forward/backward, Y-axis)
-  - r_shoulder_roll (close/away from body, X-axis)
-  - r_forearm_roll (close/away from body, X-axis)
-- **LEFT LEG:** 4 servos
-  - l_hip_roll (close/away from body, X-axis)
-  - l_knee_pitch (forward/backward, Y-axis)
-  - l_ankle_pitch (forward/backward, Y-axis)
-  - l_foot_roll (close/away from body, X-axis)
-- **RIGHT LEG:** 4 servos
-  - r_hip_roll (close/away from body, X-axis)
-  - r_knee_pitch (forward/backward, Y-axis)
-  - r_ankle_pitch (forward/backward, Y-axis)
-  - r_foot_roll (close/away from body, X-axis)
+| Link | Joint | Axis | Range |
+|------|-------|------|-------|
+| head | head_joint | Y | ±60° |
+| l_shoulder | l_shoulder_pitch | Y | ±90° |
+| l_forearm | l_forearm_roll | X | ±180° |
+| r_shoulder | r_shoulder_pitch | Y | ±90° |
+| r_forearm | r_forearm_roll | X | ±180° |
+| l_hip | l_hip_roll | X | ±45° |
+| l_knee | l_knee_pitch | Y | -120°~0° |
+| l_ankle | l_ankle_pitch | Y | ±45° |
+| l_foot | l_foot_roll | X | ±30° |
+| r_hip | r_hip_roll | X | ±45° |
+| r_knee | r_knee_pitch | Y | -120°~0° |
+| r_ankle | r_ankle_pitch | Y | ±45° |
+| r_foot | r_foot_roll | X | ±30° |
 
 **Servo Channels (Hiwonder LSC-24):**
 - Channel 0: head
-- Channels 1-7: left body (arm + leg)
-- Channels 12-19: right body (arm + leg)
-
-**Physics (Isaac Sim):**
-- Flat sibling structure (all links as siblings under /Humanoid)
-- LEGO cart with 4 wheels connected via 2 strings to waist
-- USD articulation for physics simulation
-- PD controllers on all joints
+- Channels 1-7: left body
+- Channels 12-19: right body
 
 ---
 
-## Current Training Plan (2026-01-20)
-
-**Objective:** Train head servo (channel 0) to move left/right in 10-degree increments
-
-**Approach:**
-1. **Isaac Sim Training**
-   - Create simple RL environment with head joint only
-   - Observations: joint angle + velocity (2 values)
-   - Actions: target angle change (discrete: -10°, 0°, +10°)
-   - Reward: smooth movement to target angles
-   - Train with PPO algorithm
-
-2. **Export & Deploy**
-   - Save trained PyTorch model
-   - Create ROS 2 node on Jetson
-   - Convert model output → Hiwonder servo commands
-   - Test on real hardware (channel 0, /dev/ttyUSB1)
-
-**Why start with head?**
-- Simplest DOF (1 joint, channel 0)
-- Validates full pipeline: Sim → Train → Deploy → Hardware
-- Foundation for full 15-DOF walking later
-
----
-
-## Development Commands
+## Commands
 
 ```bash
-# View robot in Isaac Sim (simple viewer)
-./models/run_isaac.sh models/view_robot.py
+# Navigate to models directory
+cd /home/kenpeter/work/biped_robot/models
 
-# Train head servo (50 episodes, saves head_servo_policy.pth)
-./models/run_isaac.sh models/train_head_servo.py
+# Launch Isaac Sim with humanoid robot
+./run_isaac.sh load_humanoid.py
 
-# Check USD file structure
-head -100 models/simple_robot.usda
+# Train head servo
+./run_isaac.sh train_head_servo.py
 
-# Verify hardware on Jetson
-python3 verify_hardware.py
+# Demo head servo movement
+./run_isaac.sh demo_head_servo.py
 ```
-
-**Models directory (2 scripts, 242 lines total):**
-- `view_robot.py` (41 lines) - Simple robot viewer
-- `train_head_servo.py` (201 lines) - Train head servo with RL
-- `simple_robot.usda` - 15 DOF robot + LEGO cart + 2 strings
 
 ---
 
 ## Troubleshooting
 
-### Robot sideways or half in ground?
-- Robot uses Blender Y-up coordinate system
-- Runtime fix applied: +90° X rotation at spawn time
-- Position: 15cm above ground (`[0, 0, 0.15]`)
-
-### Joints don't move visually?
-- GLB mesh may not be bound to physics joints
-- Joints work (check DOF count: 17) but mesh stays static
-- This is a known limitation - mesh binding needs setup
-
 ### Robot not visible?
-- Press F in Isaac Sim viewport to frame robot
+- Press F in Isaac Sim viewport to frame
 - Check console for USD loading errors
-- Verify `models/humanoid.glb` exists (57KB)
+
+### Mesh not loading?
+- Verify `models/humanoid.glb` exists (58KB)
+- Check GLB reference path in humanoid.usda
 
 ---
 
-See MEMORY.md for detailed development history.
+See CLAUDE.md for development workflow.

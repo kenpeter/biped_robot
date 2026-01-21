@@ -1,0 +1,89 @@
+#usda 1.0
+(
+    defaultPrim = "Robot"
+)
+
+def Xform "Robot" (
+    prepend apiSchemas = ["PhysicsArticulationRootAPI"]
+)
+{
+    bool physicsArticulation:fixedBase = 1
+
+    def Cube "base" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+    )
+    {
+        float physics:mass = 1000
+        double size = 0.2
+        double3 xformOp:translate = (0, 0, 0.5)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    def Cube "head" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+    )
+    {
+        rel material:binding = </Robot/Looks/HeadMaterial>
+        float physics:mass = 0.5
+        double size = 0.15
+        double3 xformOp:translate = (0, 0, 0.6499999761581421)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+
+        def Cylinder "camera_lens" (
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        )
+        {
+            rel material:binding = </Robot/Looks/CameraMaterial>
+            double height = 0.02
+            double radius = 0.015
+            double3 xformOp:rotateXYZ = (0, 90, 0)
+            double3 xformOp:translate = (0, 0.085, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+        }
+    }
+
+    def "Looks"
+    {
+        def Material "HeadMaterial"
+        {
+            token outputs:surface.connect = </Robot/Looks/HeadMaterial/Shader.outputs:surface>
+
+            def Shader "Shader"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.2, 0.2, 0.8)
+                token outputs:surface
+            }
+        }
+
+        def Material "CameraMaterial"
+        {
+            token outputs:surface.connect = </Robot/Looks/CameraMaterial/Shader.outputs:surface>
+
+            def Shader "Shader"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.05, 0.05, 0.05)
+                float inputs:metallic = 0.9
+                token outputs:surface
+            }
+        }
+    }
+
+    def PhysicsRevoluteJoint "head_joint" (
+        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+    )
+    {
+        float drive:angular:physics:damping = 1000
+        float drive:angular:physics:stiffness = 10000
+        uniform token drive:angular:physics:type = "acceleration"
+        uniform token physics:axis = "Z"
+        prepend rel physics:body0 = </Robot/base>
+        prepend rel physics:body1 = </Robot/head>
+        point3f physics:localPos0 = (0, 0, 0.1)
+        point3f physics:localPos1 = (0, 0, -0.075)
+        float physics:lowerLimit = -0.87266463
+        float physics:upperLimit = 0.87266463
+    }
+}
+

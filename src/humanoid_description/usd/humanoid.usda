@@ -1,329 +1,297 @@
 #usda 1.0
 (
-    doc = "Biped Robot Model with 15 DOF"
+    doc = "Biped Robot 15-DOF with GLB mesh"
     metersPerUnit = 1
     upAxis = "Z"
+    defaultPrim = "robot"
 )
 
-def Xform "robot" (
-    prepend apiSchemas = ["PhysicsArticulationRootAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    kind = "model"
-)
-{
-    rel defaultPrim = "robot"
+def Xform "World" {
+    def Xform "robot" (
+        prepend apiSchemas = ["PhysicsArticulationRootAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+        kind = "model"
+    ) {
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
 
-    # Physics settings
-    physics:mass = 4.0
-    vector3f physics:centerOfMass = (0, 0, 0)
-    matrix3d physics:inertiaTensor = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
+        float physics:mass = 4.0
+        vector3f physics:centerOfMass = (0, 0, 0.5)
 
-    # Torso
-    def Xform "torso"
-    {
-        double3 xformOp:translate = (0, 0, 1.0)
-        rel xformOp:order = ["xformOp:translate"]
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMaterialAPI"]
-            size = (0.3, 0.15, 0.4)
-        )
-        {
-            color3f[] primvars:displayColor = [(0.3, 0.5, 0.8)]
-        }
-    }
-
-    # HEAD
-    def Xform "head" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI", "PhysicsArticulationRootAPI"]
-    )
-    {
-        double3 xformOp:translate = (0, 0, 1.3)
-        rel xformOp:order = ["xformOp:translate"]
-
-        physics:mass = 0.3
-
-        def PhysicsJoint "head_joint" (
-            physics:jointType = "revolute"
-            physics:axis = "X"
-            physics:lowerLimit = -90
-            physics:upperLimit = 90
-        )
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-            size = (0.15, 0.12, 0.12)
-        )
-        {
-            color3f[] primvars:displayColor = [(0.9, 0.7, 0.5)]
-        }
-    }
-
-    # LEFT ARM
-    def Xform "l_shoulder" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        double3 xformOp:translate = (-0.15, 0, 1.2)
-        rel xformOp:order = ["xformOp:translate"]
-
-        physics:mass = 0.2
-
-        def PhysicsJoint "l_shoulder_pitch" (
-            physics:jointType = "revolute"
-            physics:axis = "Y"
-            physics:lowerLimit = -90
-            physics:upperLimit = 90
-        )
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-            size = (0.08, 0.08, 0.08)
-        )
-        {
-            color3f[] primvars:displayColor = [(0.8, 0.2, 0.2)]
+        def Xform "mesh" (
+            prepend references = [@../../../models/humanoid.glb@]
+        ) {
+            double3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
         }
 
-        def Xform "l_forearm"
-        {
-            double3 xformOp:translate = (0, -0.12, 0)
-            rel xformOp:order = ["xformOp:translate"]
+        def Xform "head" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+        ) {
+            double3 xformOp:translate = (0, 0, 0.385)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+            
+            float physics:mass = 0.3
 
-            def PhysicsJoint "l_forearm_roll" (
-                physics:jointType = "revolute"
-                physics:axis = "X"
-                physics:lowerLimit = -180
-                physics:upperLimit = 180
-            )
-
-            def Cube "visual" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-                size = (0.06, 0.15, 0.06)
-            )
-            {
-                color3f[] primvars:displayColor = [(0.7, 0.3, 0.3)]
+            def PhysicsRevoluteJoint "head_joint" (
+                prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+            ) {
+                uniform token physics:axis = "Y"
+                float physics:lowerLimit = -1.047
+                float physics:upperLimit = 1.047
+                rel physics:body0 = </World/robot>
+                rel physics:body1 = </World/robot/head>
+                point3f physics:localPos0 = (0, 0, -0.115)
+                point3f physics:localPos1 = (0, 0, 0.06)
             }
         }
-    }
 
-    # RIGHT ARM
-    def Xform "r_shoulder" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        double3 xformOp:translate = (0.15, 0, 1.2)
-        rel xformOp:order = ["xformOp:translate"]
+        def Xform "l_shoulder" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+        ) {
+            double3 xformOp:translate = (-0.045, 0, 0.31)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+            
+            float physics:mass = 0.2
 
-        physics:mass = 0.2
-
-        def PhysicsJoint "r_shoulder_pitch" (
-            physics:jointType = "revolute"
-            physics:axis = "Y"
-            physics:lowerLimit = -90
-            physics:upperLimit = 90
-        )
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-            size = (0.08, 0.08, 0.08)
-        )
-        {
-            color3f[] primvars:displayColor = [(0.2, 0.2, 0.8)]
-        }
-
-        def Xform "r_forearm"
-        {
-            double3 xformOp:translate = (0, -0.12, 0)
-            rel xformOp:order = ["xformOp:translate"]
-
-            def PhysicsJoint "r_forearm_roll" (
-                physics:jointType = "revolute"
-                physics:axis = "X"
-                physics:lowerLimit = -180
-                physics:upperLimit = 180
-            )
-
-            def Cube "visual" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-                size = (0.06, 0.15, 0.06)
-            )
-            {
-                color3f[] primvars:displayColor = [(0.3, 0.3, 0.7)]
-            }
-        }
-    }
-
-    # LEFT LEG
-    def Xform "l_hip" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        double3 xformOp:translate = (-0.08, 0, 0.7)
-        rel xformOp:order = ["xformOp:translate"]
-
-        physics:mass = 0.3
-
-        def PhysicsJoint "l_hip_roll" (
-            physics:jointType = "revolute"
-            physics:axis = "X"
-            physics:lowerLimit = -45
-            physics:upperLimit = 45
-        )
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-            size = (0.1, 0.1, 0.1)
-        )
-        {
-            color3f[] primvars:displayColor = [(0.2, 0.8, 0.2)]
-        }
-
-        def Xform "l_knee"
-        {
-            double3 xformOp:translate = (0, 0, -0.2)
-            rel xformOp:order = ["xformOp:translate"]
-
-            def PhysicsJoint "l_knee_pitch" (
-                physics:jointType = "revolute"
-                physics:axis = "Y"
-                physics:lowerLimit = -120
-                physics:upperLimit = 0
-            )
-
-            def Cube "visual" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-                size = (0.08, 0.25, 0.08)
-            )
-            {
-                color3f[] primvars:displayColor = [(0.3, 0.7, 0.3)]
+            def PhysicsRevoluteJoint "l_shoulder_pitch" (
+                prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+            ) {
+                uniform token physics:axis = "Y"
+                float physics:lowerLimit = -1.57
+                float physics:upperLimit = 1.57
+                rel physics:body0 = </World/robot>
+                rel physics:body1 = </World/robot/l_shoulder>
+                point3f physics:localPos0 = (-0.045, 0, -0.19)
+                point3f physics:localPos1 = (0, 0.03, 0)
             }
 
-            def Xform "l_ankle"
-            {
-                double3 xformOp:translate = (0, 0, -0.15)
-                rel xformOp:order = ["xformOp:translate"]
+            def Xform "l_forearm" (
+                prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+            ) {
+                double3 xformOp:translate = (0, -0.08, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate"]
 
-                def PhysicsJoint "l_ankle_pitch" (
-                    physics:jointType = "revolute"
-                    physics:axis = "Y"
-                    physics:lowerLimit = -45
-                    physics:upperLimit = 45
-                )
+                float physics:mass = 0.15
 
-                def Cube "visual" (
-                    prepend apiSchemas = ["PhysicsCollisionAPI"]
-                    size = (0.07, 0.07, 0.07)
-                )
-                {
-                    color3f[] primvars:displayColor = [(0.4, 0.6, 0.4)]
+                def PhysicsRevoluteJoint "l_forearm_roll" (
+                    prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+                ) {
+                    uniform token physics:axis = "X"
+                    float physics:lowerLimit = -3.14
+                    float physics:upperLimit = 3.14
+                    rel physics:body0 = </World/robot/l_shoulder>
+                    rel physics:body1 = </World/robot/l_shoulder/l_forearm>
+                    point3f physics:localPos0 = (0, -0.08, 0)
+                    point3f physics:localPos1 = (0, 0.04, 0)
+                }
+            }
+        }
+
+        def Xform "r_shoulder" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+        ) {
+            double3 xformOp:translate = (0.045, 0, 0.31)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+            
+            float physics:mass = 0.2
+
+            def PhysicsRevoluteJoint "r_shoulder_pitch" (
+                prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+            ) {
+                uniform token physics:axis = "Y"
+                float physics:lowerLimit = -1.57
+                float physics:upperLimit = 1.57
+                rel physics:body0 = </World/robot>
+                rel physics:body1 = </World/robot/r_shoulder>
+                point3f physics:localPos0 = (0.045, 0, -0.19)
+                point3f physics:localPos1 = (0, 0.03, 0)
+            }
+
+            def Xform "r_forearm" (
+                prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+            ) {
+                double3 xformOp:translate = (0, -0.08, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate"]
+
+                float physics:mass = 0.15
+
+                def PhysicsRevoluteJoint "r_forearm_roll" (
+                    prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+                ) {
+                    uniform token physics:axis = "X"
+                    float physics:lowerLimit = -3.14
+                    float physics:upperLimit = 3.14
+                    rel physics:body0 = </World/robot/r_shoulder>
+                    rel physics:body1 = </World/robot/r_shoulder/r_forearm>
+                    point3f physics:localPos0 = (0, -0.08, 0)
+                    point3f physics:localPos1 = (0, 0.04, 0)
+                }
+            }
+        }
+
+        def Xform "l_hip" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+        ) {
+            double3 xformOp:translate = (-0.045, 0, 0.205)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+            
+            float physics:mass = 0.35
+
+            def PhysicsRevoluteJoint "l_hip_roll" (
+                prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+            ) {
+                uniform token physics:axis = "X"
+                float physics:lowerLimit = -0.785
+                float physics:upperLimit = 0.785
+                rel physics:body0 = </World/robot>
+                rel physics:body1 = </World/robot/l_hip>
+                point3f physics:localPos0 = (-0.045, 0, -0.095)
+                point3f physics:localPos1 = (0, 0.025, 0)
+            }
+
+            def Xform "l_knee" (
+                prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+            ) {
+                double3 xformOp:translate = (0, 0, -0.09)
+                uniform token[] xformOpOrder = ["xformOp:translate"]
+
+                float physics:mass = 0.25
+
+                def PhysicsRevoluteJoint "l_knee_pitch" (
+                    prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+                ) {
+                    uniform token physics:axis = "Y"
+                    float physics:lowerLimit = -2.094
+                    float physics:upperLimit = 0
+                    rel physics:body0 = </World/robot/l_hip>
+                    rel physics:body1 = </World/robot/l_hip/l_knee>
+                    point3f physics:localPos0 = (0, 0, -0.09)
+                    point3f physics:localPos1 = (0, 0.045, 0)
                 }
 
-                def Xform "l_foot"
-                {
-                    double3 xformOp:translate = (0, 0, -0.05)
-                    rel xformOp:order = ["xformOp:translate"]
+                def Xform "l_ankle" (
+                    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                ) {
+                    double3 xformOp:translate = (0, 0, -0.09)
+                    uniform token[] xformOpOrder = ["xformOp:translate"]
 
-                    def PhysicsJoint "l_foot_roll" (
-                        physics:jointType = "revolute"
-                        physics:axis = "X"
-                        physics:lowerLimit = -30
-                        physics:upperLimit = 30
-                    )
+                    float physics:mass = 0.15
 
-                    def Cube "visual" (
-                        prepend apiSchemas = ["PhysicsCollisionAPI"]
-                        size = (0.12, 0.06, 0.03)
-                    )
-                    {
-                        color3f[] primvars:displayColor = [(0.2, 0.2, 0.2)]
+                    def PhysicsRevoluteJoint "l_ankle_pitch" (
+                        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+                    ) {
+                        uniform token physics:axis = "Y"
+                        float physics:lowerLimit = -0.785
+                        float physics:upperLimit = 0.785
+                        rel physics:body0 = </World/robot/l_hip/l_knee>
+                        rel physics:body1 = </World/robot/l_hip/l_knee/l_ankle>
+                        point3f physics:localPos0 = (0, 0, -0.09)
+                        point3f physics:localPos1 = (0, 0.045, 0)
+                    }
+
+                    def Xform "l_foot" (
+                        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                    ) {
+                        double3 xformOp:translate = (0, 0, -0.038)
+                        uniform token[] xformOpOrder = ["xformOp:translate"]
+
+                        float physics:mass = 0.1
+
+                        def PhysicsRevoluteJoint "l_foot_roll" (
+                            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+                        ) {
+                            uniform token physics:axis = "X"
+                            float physics:lowerLimit = -0.524
+                            float physics:upperLimit = 0.524
+                            rel physics:body0 = </World/robot/l_hip/l_knee/l_ankle>
+                            rel physics:body1 = </World/robot/l_hip/l_knee/l_ankle/l_foot>
+                            point3f physics:localPos0 = (0, 0, -0.038)
+                            point3f physics:localPos1 = (0, 0.023, 0)
+                        }
                     }
                 }
             }
         }
-    }
 
-    # RIGHT LEG
-    def Xform "r_hip" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        double3 xformOp:translate = (0.08, 0, 0.7)
-        rel xformOp:order = ["xformOp:translate"]
+        def Xform "r_hip" (
+            prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+        ) {
+            double3 xformOp:translate = (0.045, 0, 0.205)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+            
+            float physics:mass = 0.35
 
-        physics:mass = 0.3
-
-        def PhysicsJoint "r_hip_roll" (
-            physics:jointType = "revolute"
-            physics:axis = "X"
-            physics:lowerLimit = -45
-            physics:upperLimit = 45
-        )
-
-        def Cube "visual" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-            size = (0.1, 0.1, 0.1)
-        )
-        {
-            color3f[] primvars:displayColor = [(0.2, 0.6, 0.8)]
-        }
-
-        def Xform "r_knee"
-        {
-            double3 xformOp:translate = (0, 0, -0.2)
-            rel xformOp:order = ["xformOp:translate"]
-
-            def PhysicsJoint "r_knee_pitch" (
-                physics:jointType = "revolute"
-                physics:axis = "Y"
-                physics:lowerLimit = -120
-                physics:upperLimit = 0
-            )
-
-            def Cube "visual" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-                size = (0.08, 0.25, 0.08)
-            )
-            {
-                color3f[] primvars:displayColor = [(0.3, 0.5, 0.7)]
+            def PhysicsRevoluteJoint "r_hip_roll" (
+                prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+            ) {
+                uniform token physics:axis = "X"
+                float physics:lowerLimit = -0.785
+                float physics:upperLimit = 0.785
+                rel physics:body0 = </World/robot>
+                rel physics:body1 = </World/robot/r_hip>
+                point3f physics:localPos0 = (0.045, 0, -0.095)
+                point3f physics:localPos1 = (0, 0.025, 0)
             }
 
-            def Xform "r_ankle"
-            {
-                double3 xformOp:translate = (0, 0, -0.15)
-                rel xformOp:order = ["xformOp:translate"]
+            def Xform "r_knee" (
+                prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+            ) {
+                double3 xformOp:translate = (0, 0, -0.09)
+                uniform token[] xformOpOrder = ["xformOp:translate"]
 
-                def PhysicsJoint "r_ankle_pitch" (
-                    physics:jointType = "revolute"
-                    physics:axis = "Y"
-                    physics:lowerLimit = -45
-                    physics:upperLimit = 45
-                )
+                float physics:mass = 0.25
 
-                def Cube "visual" (
-                    prepend apiSchemas = ["PhysicsCollisionAPI"]
-                    size = (0.07, 0.07, 0.07)
-                )
-                {
-                    color3f[] primvars:displayColor = [(0.4, 0.4, 0.6)]
+                def PhysicsRevoluteJoint "r_knee_pitch" (
+                    prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+                ) {
+                    uniform token physics:axis = "Y"
+                    float physics:lowerLimit = -2.094
+                    float physics:upperLimit = 0
+                    rel physics:body0 = </World/robot/r_hip>
+                    rel physics:body1 = </World/robot/r_hip/r_knee>
+                    point3f physics:localPos0 = (0, 0, -0.09)
+                    point3f physics:localPos1 = (0, 0.045, 0)
                 }
 
-                def Xform "r_foot"
-                {
-                    double3 xformOp:translate = (0, 0, -0.05)
-                    rel xformOp:order = ["xformOp:translate"]
+                def Xform "r_ankle" (
+                    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                ) {
+                    double3 xformOp:translate = (0, 0, -0.09)
+                    uniform token[] xformOpOrder = ["xformOp:translate"]
 
-                    def PhysicsJoint "r_foot_roll" (
-                        physics:jointType = "revolute"
-                        physics:axis = "X"
-                        physics:lowerLimit = -30
-                        physics:upperLimit = 30
-                    )
+                    float physics:mass = 0.15
 
-                    def Cube "visual" (
-                        prepend apiSchemas = ["PhysicsCollisionAPI"]
-                        size = (0.12, 0.06, 0.03)
-                    )
-                    {
-                        color3f[] primvars:displayColor = [(0.2, 0.2, 0.2)]
+                    def PhysicsRevoluteJoint "r_ankle_pitch" (
+                        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+                    ) {
+                        uniform token physics:axis = "Y"
+                        float physics:lowerLimit = -0.785
+                        float physics:upperLimit = 0.785
+                        rel physics:body0 = </World/robot/r_hip/r_knee>
+                        rel physics:body1 = </World/robot/r_hip/r_knee/r_ankle>
+                        point3f physics:localPos0 = (0, 0, -0.09)
+                        point3f physics:localPos1 = (0, 0.045, 0)
+                    }
+
+                    def Xform "r_foot" (
+                        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+                    ) {
+                        double3 xformOp:translate = (0, 0, -0.038)
+                        uniform token[] xformOpOrder = ["xformOp:translate"]
+
+                        float physics:mass = 0.1
+
+                        def PhysicsRevoluteJoint "r_foot_roll" (
+                            prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+                        ) {
+                            uniform token physics:axis = "X"
+                            float physics:lowerLimit = -0.524
+                            float physics:upperLimit = 0.524
+                            rel physics:body0 = </World/robot/r_hip/r_knee/r_ankle>
+                            rel physics:body1 = </World/robot/r_hip/r_knee/r_ankle/r_foot>
+                            point3f physics:localPos0 = (0, 0, -0.038)
+                            point3f physics:localPos1 = (0, 0.023, 0)
+                        }
                     }
                 }
             }

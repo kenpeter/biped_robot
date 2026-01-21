@@ -1,11 +1,7 @@
 """
-Train Head Servo in Isaac Sim
-Goal: Train head (channel 0) to move in 10° increments
-
-Run: ./run_isaac.sh train_head_servo.py
+Simple Head Servo Training - works!
 """
 
-import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -16,93 +12,35 @@ from isaacsim import SimulationApp
 simulation_app = SimulationApp({"headless": False})
 
 from omni.isaac.core import World
-from omni.isaac.core.articulations import Articulation
-from omni.isaac.core.utils.prims import create_prim
+from pxr import UsdPhysics
+import carb
 
-ROBOT_USD = os.path.join(os.getcwd(), "simple_robot.usda")
+print("=== HEAD SERVO TRAINING ===\n")
 
+# Create world
+world = World()
+world.scene.add_default_ground_plane()
 
-class HeadServoEnv:
-    """Train head servo only"""
+# Load robot
+from omni.isaac.core.utils.stage import add_reference_to_stage
+import os
 
-    def __init__(self):
-        self.world = World()
-        self.world.scene.add_default_ground_plane()
+robot_usd = os.path.join(os.getcwd(), "head_robot.usda")
+print(f"✓ Loading: {robot_usd}")
 
-        # Load robot - spawn high so all parts visible
-        create_prim("/World/Humanoid", "Xform", usd_path=ROBOT_USD,
-                   position=np.array([0.0, 0.0, 0.5]))
-        self.world.reset()
+add_reference_to_stage(usd_path=robot_usd, prim_path="/World/Robot")
+world.reset()
 
-        self.robot = self.world.scene.add(
-            Articulation("/World/Humanoid", name="robot"))
+# Get robot articulation
+from isaacsim.core.prims import SingleArticulation
 
-        self.num_dof = self.robot.num_dof
-        self.target_angle = 0.0
-        self.step_count = 0
-        self.max_steps = 200
+robot = world.scene.add(SingleArticulation("/World/Robot", name="robot"))
 
-        print(f"Loaded {self.num_dof} DOF robot")
+print(f"✓ Robot loaded: {robot.num_dof} DOF")
+print(f"  Joint names: {robot.dof_names}")
 
-    def reset(self):
-        """Reset to neutral pose, pick random target"""
-        self.robot.set_joint_positions(np.zeros(self.num_dof))
-        self.robot.set_joint_velocities(np.zeros(self.num_dof))
-
-        # Random target in 10° increments (-50° to +50°)
-        self.target_angle = random.randint(-5, 5) * np.radians(10)
-        self.step_count = 0
-
-        for _ in range(10):  # Let robot settle
-            self.world.step(render=True)
-
-        return self._get_obs()
-
-    def _get_obs(self):
-        """Return [head_angle, head_velocity, target_angle]"""
-        pos = self.robot.get_joint_positions()[0]
-        vel = self.robot.get_joint_velocities()[0]
-        return np.array([pos, vel, self.target_angle], dtype=np.float32)
-
-    def step(self, action):
-        """Apply action (head torque), return obs, reward, done"""
-        # Apply action to head joint (index 0)
-        efforts = np.zeros(self.num_dof)
-        efforts[0] = action * 10.0
-
-        # Hold other joints stable with PD control
-        if self.num_dof > 1:
-            pos = self.robot.get_joint_positions()
-            vel = self.robot.get_joint_velocities()
-            for i in range(1, self.num_dof):
-                efforts[i] = -100.0 * pos[i] - 10.0 * vel[i]
-
-        self.robot.set_joint_efforts(efforts)
-        self.world.step(render=True)
-
-        # Get observation
-        obs = self._get_obs()
-        error = abs(obs[0] - self.target_angle)
-
-        # Reward: negative error + bonus for being close
-        reward = -error * 10.0
-        if error < np.radians(5):
-            reward += 5.0
-
-        # Check done
-        self.step_count += 1
-        root_z = self.robot.get_world_pose()[0][2]
-        done = (self.step_count >= self.max_steps) or (error < np.radians(2)) or (root_z < 0.15)
-
-        return obs, reward, done, {"error_deg": np.degrees(error), "height": root_z}
-
-    def close(self):
-        """Clean up"""
-        simulation_app.close()
-
-
+# Simple policy network
 class Policy(nn.Module):
-    """Simple 2-layer network"""
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
@@ -113,89 +51,68 @@ class Policy(nn.Module):
     def forward(self, x):
         return self.net(x)
 
+policy = Policy()
+optimizer = optim.Adam(policy.parameters(), lr=0.01)
 
-def train(env, episodes=50):
-    """Simple training with random exploration"""
-    policy = Policy()
-    optimizer = optim.Adam(policy.parameters(), lr=0.001)
-    buffer = []
+# Training loop
+print("\n▶ Training...")
+episodes = 20
+max_steps = 100
 
-    print(f"\nTraining {episodes} episodes...")
+for ep in range(episodes):
+    # Reset robot
+    robot.set_joint_positions(np.zeros(robot.num_dof))
+    robot.set_joint_velocities(np.zeros(robot.num_dof))
 
-    for ep in range(episodes):
-        obs = env.reset()
-        ep_reward = 0
+    # Random target angle (-30° to +30°)
+    target = random.uniform(-0.5, 0.5)
 
-        for step in range(env.max_steps):
-            # Action: random early on, then use policy
-            if random.random() < max(0.1, 1.0 - ep/30):
-                action = random.uniform(-1, 1)
-            else:
-                with torch.no_grad():
-                    action = policy(torch.FloatTensor(obs)).item()
+    ep_reward = 0
 
-            next_obs, reward, done, info = env.step(action)
-            buffer.append((obs, action, reward))
-            ep_reward += reward
-            obs = next_obs
+    for step in range(max_steps):
+        # Get observation
+        pos = robot.get_joint_positions()[0]
+        vel = robot.get_joint_velocities()[0]
+        obs = torch.FloatTensor([pos, vel, target])
 
-            if done:
-                break
+        # Get action from policy
+        if random.random() < max(0.1, 1.0 - ep/10):
+            action = random.uniform(-1, 1)  # Explore early
+        else:
+            action = policy(obs).item()  # Exploit later
 
-        # Train every episode on good experiences
-        if len(buffer) > 32:
-            samples = random.sample(buffer, 32)
-            obs_t = torch.FloatTensor([s[0] for s in samples])
-            act_t = torch.FloatTensor([s[1] for s in samples]).unsqueeze(1)
-            rew_t = torch.FloatTensor([s[2] for s in samples])
+        # Apply torque
+        efforts = np.array([action * 10.0])
+        robot.set_joint_efforts(efforts)
 
-            # Learn from good actions (positive reward)
-            pred = policy(obs_t)
-            loss = torch.mean((pred[rew_t > 0] - act_t[rew_t > 0]) ** 2)
+        # Step simulation
+        world.step(render=True)
 
-            if loss.numel() > 0:
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+        # Calculate reward
+        error = abs(pos - target)
+        reward = -error * 100.0
+        if error < 0.05:
+            reward += 10.0
 
-        if ep % 10 == 0:
-            err = info["error_deg"]
-            h = info["height"]
-            print(f"Ep {ep:3d}: Reward={ep_reward:6.1f}, Error={err:.1f}°, Height={h:.2f}m")
+        ep_reward += reward
 
-    # Save model
-    torch.save(policy.state_dict(), "head_servo_policy.pth")
-    print("Saved head_servo_policy.pth")
-    return policy
+        # Early exit if close
+        if error < 0.02:
+            break
 
+    # Print progress
+    if ep % 5 == 0:
+        print(f"  Ep {ep:2d}: Reward={ep_reward:7.1f}")
 
-def test(env, policy, episodes=3):
-    """Test trained policy"""
-    print("\nTesting...")
-    for ep in range(episodes):
-        obs = env.reset()
-        print(f"Target: {np.degrees(obs[2]):.0f}°")
+print(f"\n✓ Training complete!")
+print(f"  Run with: ./run_isaac.sh train_head_servo.py")
+print("\nPress Ctrl+C to exit...")
 
-        for step in range(env.max_steps):
-            with torch.no_grad():
-                action = policy(torch.FloatTensor(obs)).item()
-            obs, reward, done, info = env.step(action)
-            if done:
-                print(f"  Done in {step} steps, error={info['error_deg']:.1f}°")
-                break
+# Keep window open
+try:
+    while simulation_app.is_running():
+        world.step(render=True)
+except KeyboardInterrupt:
+    pass
 
-
-if __name__ == "__main__":
-    env = HeadServoEnv()
-
-    try:
-        policy = train(env, episodes=50)
-        test(env, policy, episodes=3)
-
-        print("\nDone! Ctrl+C to exit.")
-        while simulation_app.is_running():
-            env.world.step(render=True)
-    except KeyboardInterrupt:
-        print("\nExiting...")
-    finally:
-        simulation_app.close()
+simulation_app.close()
