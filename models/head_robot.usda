@@ -7,13 +7,18 @@ def Xform "Robot" (
     prepend apiSchemas = ["PhysicsArticulationRootAPI"]
 )
 {
-    bool physicsArticulation:fixedBase = 1
+    def PhysicsFixedJoint "world_base_joint"
+    {
+        prepend rel physics:body1 = </Robot/base>
+        point3f physics:localPos0 = (0, 0, 0)
+        point3f physics:localPos1 = (0, 0, 0)
+    }
 
     def Cube "base" (
         prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI"]
     )
     {
-        float physics:mass = 1000
+        float physics:mass = 100
         double size = 0.2
         double3 xformOp:translate = (0, 0, 0.5)
         uniform token[] xformOpOrder = ["xformOp:translate"]
@@ -75,15 +80,16 @@ def Xform "Robot" (
     )
     {
         float drive:angular:physics:damping = 1000
+        float drive:angular:physics:maxForce = 100
         float drive:angular:physics:stiffness = 10000
-        uniform token drive:angular:physics:type = "acceleration"
+        uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Z"
         prepend rel physics:body0 = </Robot/base>
         prepend rel physics:body1 = </Robot/head>
         point3f physics:localPos0 = (0, 0, 0.1)
         point3f physics:localPos1 = (0, 0, -0.075)
-        float physics:lowerLimit = -0.87266463
-        float physics:upperLimit = 0.87266463
+        float physics:lowerLimit = -inf
+        float physics:upperLimit = inf
     }
 }
 

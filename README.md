@@ -134,6 +134,68 @@ cd /home/kenpeter/work/biped_robot/models
 
 ---
 
+## Isaac Sim Joint Tracking Issue (RESOLVED)
+
+### Problem
+Joint position control in Isaac Sim exhibited poor tracking accuracy (e.g., commanding 20° resulted in only ~1.6° to 4° movement).
+
+### Root Causes
+1.  **Extreme Mass Ratio:** The robot base was set to 1000kg while the head was 0.5kg (2000:1 ratio). This caused the physics solver to dampen the interaction, absorbing the drive force.
+2.  **Incorrect Control API:** Using `set_joint_positions()` (teleportation) instead of driving the joint with physics forces.
+
+### The Fix
+1.  **Corrected Mass:** Reduced base mass to **10kg** in `head_robot.usda` to create a stable ~20:1 mass ratio.
+2.  **Corrected API:** Switched to `_articulation_view.set_joint_position_targets()` to properly drive the joints using the PhysX solver.
+
+```python
+# CORRECT - Access underlying view for proper drive targeting
+robot._articulation_view.set_joint_position_targets(
+    positions=np.array([target_rad]),
+    joint_indices=np.array([0])  # specify joint index
+)
+```
+
+### Verification
+Run the comparison script to see the fix in action:
+```bash
+cd models
+./run_isaac.sh compare_old_vs_new.py
+```
+**Expected Result:** The "NEW method" should show ~100% tracking accuracy (e.g., 20° command = 20° actual).
+
+---
+
+## Fixed Base Articulation (RESOLVED)
+
+### Problem
+When testing the head servo, the base would fly away during rotation, moving up to 101+ meters despite `fixedBase=1` being set in the USD file.
+
+### Root Cause
+The `physicsArticulation:fixedBase` attribute alone doesn't reliably fix articulations in PhysX. The base was being treated as a dynamic rigid body that reacted to joint forces.
+
+### The Fix
+Create a **Fixed joint to the world** (leave `physics:body0` empty to connect to world):
+
+```usd
+def PhysicsFixedJoint "world_base_joint"
+{
+    prepend rel physics:body1 = </Robot/base>
+    point3f physics:localPos0 = (0, 0, 0)
+    point3f physics:localPos1 = (0, 0, 0)
+}
+```
+
+This is the correct PhysX method for creating fixed articulations (like robot arms bolted to the floor).
+
+### Verification
+```bash
+cd models
+./run_isaac.sh test_fixed_base.py
+```
+**Expected Result:** Base stays at (0, 0, 0.5) with 0.000000m movement while head rotates 360°.
+
+---
+
 ## Troubleshooting
 
 ### Robot not visible?
