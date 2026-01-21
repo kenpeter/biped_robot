@@ -10,85 +10,6 @@
 
 ---
 
-## Head Servo Model (Example: Train → Deploy)
-
-Simple neural network trained in simulation, deployed to Jetson to control servo on `/dev/ttyUSB1`.
-
-### Files
-
-| File | Purpose |
-|------|---------|
-| `models/head_model.py` | Neural network architecture (8 hidden neurons) |
-| `models/train_head.py` | Train in Isaac Sim, collect data, save weights |
-| `models/deploy_head_jetson.py` | Load weights, control real servo |
-
-### Model Architecture
-
-```
-Input:  target_angle (-30° to +30°)
-        ↓
-Hidden: 8 neurons, ReLU activation
-        ↓
-Output: position_offset (-1 to +1)
-        ↓
-Servo:  1500 + offset * 1000 → position [500, 2500]
-```
-
-### Training Workflow
-
-**Step 1: Train in Isaac Sim**
-```bash
-cd /home/kenpeter/work/biped_robot/models
-./run_isaac.sh train_head.py
-```
-- Collects data at ±30°, ±20°, ±10°, 0° from simulation
-- Trains neural network (2000 epochs)
-- Saves `head_model_weights.json` and `head_model_config.json`
-
-**Step 2: Copy to Jetson**
-
-Option A - Google Drive (recommended):
-```bash
-# Files auto-sync if using Drive sync
-# On Jetson, download:
-cd /home/jetson/work/biped_robot/models
-wget "https://drive.google.com/uc?export=download&id=YOUR_FILE_ID" -O head_model_weights.json
-```
-
-Option B - USB flash drive:
-```bash
-# On your PC
-cp head_model.py head_model_weights.json /media/yourname/USB/
-# Plug into Jetson, copy files
-```
-
-Option C - Direct network:
-```bash
-scp head_model.py head_model_weights.json jetson@jetson.local:/home/jetson/work/biped_robot/models/
-```
-
-**Step 3: Deploy on Jetson**
-```bash
-# On Jetson
-cd /home/jetson/work/biped_robot/models
-python3 deploy_head_jetson.py
-```
-
-### Test Trained Model
-
-```bash
-python3 -c "
-from head_model import HeadServoModel
-model = HeadServoModel()
-model.load('head_model_weights.json')
-for angle in [-30, -15, 0, 15, 30]:
-    pos = model.predict(angle)
-    print(f'{angle:+3d}° -> {pos:.0f}')
-"
-```
-
----
-
 ## Hardware Setup
 
 **Physical Robot:**
@@ -150,36 +71,26 @@ cd /home/kenpeter/work/biped_robot/models
 ```
 biped_robot/
 ├── models/
-│   ├── head_model.py                 # Neural network for head servo
-│   ├── train_head.py                 # Train in Isaac Sim
-│   ├── deploy_head_jetson.py         # Deploy to Jetson hardware
-│   ├── head_robot.usda               # Head servo robot (1 DOF, fixed base)
-│   ├── load_humanoid.py              # View full 15-DOF robot in Isaac Sim
-│   ├── demo_head.py                  # Demo: visualize head oscillation
-│   ├── run_isaac.sh                  # Isaac Sim launcher
-│   ├── humanoid.glb                  # 3D mesh (from 3D scanner)
-│   └── 15dof.png                     # Robot diagram
+│   ├── head_model.py           # Neural network library (imported)
+│   ├── train_head.py           # Train in Isaac Sim
+│   ├── deploy_head_jetson.py   # Deploy on Jetson
+│   ├── head_robot.usda         # Head servo robot (1 DOF)
+│   ├── load_humanoid.py        # View full 15-DOF robot
+│   ├── humanoid.glb            # 3D mesh (35 parts)
+│   ├── 15dof.png               # Robot diagram
+│   └── run_isaac.sh            # Isaac Sim launcher
 │
 ├── src/
 │   ├── humanoid_description/usd/humanoid.usda  # 15-DOF full model
 │   └── humanoid_hardware/                      # ROS 2 Jetson driver
 │
-├── README.md                         # This file
-└── CLAUDE.md                         # Claude AI instructions
+├── README.md
+└── CLAUDE.md
 ```
 
 ---
 
 ## Quick Start
-
-### View Robot in Isaac Sim
-
-```bash
-cd /home/kenpeter/work/biped_robot/models
-./run_isaac.sh load_humanoid.py
-```
-
-**Expected:** Isaac Sim opens showing humanoid robot with GLB mesh.
 
 ### Train Head Servo Model
 
@@ -188,19 +99,23 @@ cd /home/kenpeter/work/biped_robot/models
 ./run_isaac.sh train_head.py
 ```
 
-**Expected:** Robot oscillates ±30°, model trains, weights saved to JSON.
-
 ### Deploy to Jetson
 
+Copy to Jetson:
 ```bash
-# Copy to Jetson
-scp head_model*.json jetson:/home/jetson/work/biped_robot/models/
+scp head_model.py train_head.py deploy_head_jetson.py jetson:/home/jetson/work/biped_robot/models/
+```
 
-# On Jetson
+Run on Jetson:
+```bash
 python3 deploy_head_jetson.py
 ```
 
-**Expected:** Servo on channel 0 oscillates ±30°.
+### View Full Robot
+
+```bash
+./run_isaac.sh load_humanoid.py
+```
 
 ---
 
