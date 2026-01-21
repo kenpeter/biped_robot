@@ -1,0 +1,14 @@
+{
+  "target_angles": [
+    -30,
+    -20,
+    -10,
+    0,
+    10,
+    20,
+    30
+  ],
+  "input_size": 1,
+  "hidden_size": 8,
+  "output_size": 1
+}
