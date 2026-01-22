@@ -15,6 +15,7 @@ from head_model import HeadServoModel
 
 
 def move_servo(ser, servo_id, position, duration_ms=1000):
+    position = int(position)
     time_lo = duration_ms & 0xFF
     time_hi = (duration_ms >> 8) & 0xFF
     pos_lo = position & 0xFF
