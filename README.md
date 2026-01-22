@@ -74,6 +74,7 @@ biped_robot/
 │   ├── head_model.py           # Neural network library (imported)
 │   ├── train_head.py           # Train in Isaac Sim
 │   ├── deploy_head_jetson.py   # Deploy on Jetson
+│   ├── move_head.py            # Manual head servo control
 │   ├── head_robot.usda         # Head servo robot (1 DOF)
 │   ├── load_humanoid.py        # View full 15-DOF robot
 │   ├── humanoid.glb            # 3D mesh (35 parts)
@@ -98,6 +99,23 @@ biped_robot/
 cd /home/kenpeter/work/biped_robot/models
 ./run_isaac.sh train_head.py
 ```
+
+### Manual Head Servo Control (Jetson)
+
+```bash
+cd /home/jetson/work/biped_robot/models
+
+python3 move_head.py              # show current position
+python3 move_head.py 1500         # go to position (500-2500)
+python3 move_head.py +100         # move +100 from current
+python3 move_head.py -100         # move -100 from current
+python3 move_head.py center 1550  # set 1550 as center
+python3 move_head.py home         # go to center
+python3 move_head.py off          # release servo (torque off)
+python3 move_head.py on           # lock servo at saved position
+```
+
+Position range: 500-2500 (maps to 0-180 degrees, ~11 units per degree)
 
 ### Deploy to Jetson
 

@@ -14,8 +14,12 @@ Usage:
   python3 move_head.py left 2150    # set left limit
   python3 move_head.py right 2250   # set right limit
   python3 move_head.py show         # show calibration
+  python3 move_head.py read         # read current position from servo
+  python3 move_head.py off          # release servo (torque off)
+  python3 move_head.py on           # lock servo at current saved pos
 """
 import serial
+import time
 import sys
 import os
 import json
@@ -35,10 +39,26 @@ def save_calib(calib):
     with open(CALIB_FILE, 'w') as f:
         json.dump(calib, f)
 
+def read_servo():
+    """Read current position from servo."""
+    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+    # Hiwonder read position command: 0x55 0x55 len cmd count servo_id
+    cmd = bytes([0x55, 0x55, 0x04, 0x15, 0x01, SERVO_CHANNEL])
+    ser.write(cmd)
+    time.sleep(0.1)
+    resp = ser.read(100)
+    ser.close()
+    if len(resp) >= 8:
+        # Response: 0x55 0x55 len cmd count servo_id pos_lo pos_hi
+        pos = resp[6] | (resp[7] << 8)
+        return pos
+    return None
+
 def move_servo(pos):
     pos = int(pos)
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-    cmd = bytes([0x55, 0x55, 0x08, 0x03, 0x01, 0xF4, 0x01,
+    time_ms = 100  # fast movement
+    cmd = bytes([0x55, 0x55, 0x08, 0x03, 0x01, time_ms & 0xFF, (time_ms >> 8) & 0xFF,
                  SERVO_CHANNEL, pos & 0xFF, (pos >> 8) & 0xFF])
     ser.write(cmd)
     ser.close()
@@ -55,6 +75,27 @@ if __name__ == "__main__":
 
     if cmd == 'show':
         print(f"pos={calib['pos']}  center={calib['center']}  left={calib['left']}  right={calib['right']}")
+
+    elif cmd == 'read':
+        pos = read_servo()
+        if pos:
+            print(f"Read from servo: {pos}")
+            print(f"To set as center: python3 move_head.py center {pos}")
+        else:
+            print("Failed to read servo position")
+
+    elif cmd == 'off':
+        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        # Unload servo command (torque off)
+        cmd = bytes([0x55, 0x55, 0x04, 0x14, 0x01, SERVO_CHANNEL])
+        ser.write(cmd)
+        ser.close()
+        print("Servo released - move head by hand, then run: python3 move_head.py read")
+
+    elif cmd == 'on':
+        pos = calib['pos']
+        move_servo(pos)
+        print(f"Servo locked at {pos}")
 
     elif cmd == 'center':
         if len(sys.argv) > 2:
