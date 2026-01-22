@@ -6,16 +6,12 @@
     defaultPrim = "robot"
 )
 
-def Xform "World" {
-    def Xform "robot" (
-        prepend apiSchemas = ["PhysicsArticulationRootAPI", "PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+def Xform "robot" (
+        prepend apiSchemas = ["PhysicsArticulationRootAPI"]
         kind = "model"
     ) {
         double3 xformOp:translate = (0, 0, 0)
         uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        float physics:mass = 4.0
-        vector3f physics:centerOfMass = (0, 0, 0.5)
 
         def Xform "mesh" (
             prepend references = [@../../../models/humanoid.glb@]
@@ -29,7 +25,7 @@ def Xform "World" {
             prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         ) {
             double3 xformOp:translate = (0, 0, 0.385)
-            uniform token[] xformOpOrder = ["xformOp:translate"]
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
             
             float physics:mass = 0.3
 
@@ -39,10 +35,14 @@ def Xform "World" {
                 uniform token physics:axis = "Y"
                 float physics:lowerLimit = -1.047
                 float physics:upperLimit = 1.047
-                rel physics:body0 = </World/robot>
-                rel physics:body1 = </World/robot/head>
+                rel physics:body0 = </robot>
+                rel physics:body1 = </robot/head>
                 point3f physics:localPos0 = (0, 0, -0.115)
                 point3f physics:localPos1 = (0, 0, 0.06)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
             }
         }
 
@@ -50,7 +50,7 @@ def Xform "World" {
             prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         ) {
             double3 xformOp:translate = (-0.045, 0, 0.31)
-            uniform token[] xformOpOrder = ["xformOp:translate"]
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
             
             float physics:mass = 0.2
 
@@ -60,17 +60,21 @@ def Xform "World" {
                 uniform token physics:axis = "Y"
                 float physics:lowerLimit = -1.57
                 float physics:upperLimit = 1.57
-                rel physics:body0 = </World/robot>
-                rel physics:body1 = </World/robot/l_shoulder>
+                rel physics:body0 = </robot>
+                rel physics:body1 = </robot/l_shoulder>
                 point3f physics:localPos0 = (-0.045, 0, -0.19)
                 point3f physics:localPos1 = (0, 0.03, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
             }
 
             def Xform "l_forearm" (
                 prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
             ) {
                 double3 xformOp:translate = (0, -0.08, 0)
-                uniform token[] xformOpOrder = ["xformOp:translate"]
+                uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
 
                 float physics:mass = 0.15
 
@@ -80,10 +84,14 @@ def Xform "World" {
                     uniform token physics:axis = "X"
                     float physics:lowerLimit = -3.14
                     float physics:upperLimit = 3.14
-                    rel physics:body0 = </World/robot/l_shoulder>
-                    rel physics:body1 = </World/robot/l_shoulder/l_forearm>
+                    rel physics:body0 = </robot/l_shoulder>
+                    rel physics:body1 = </robot/l_shoulder/l_forearm>
                     point3f physics:localPos0 = (0, -0.08, 0)
                     point3f physics:localPos1 = (0, 0.04, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
                 }
             }
         }
@@ -92,7 +100,7 @@ def Xform "World" {
             prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         ) {
             double3 xformOp:translate = (0.045, 0, 0.31)
-            uniform token[] xformOpOrder = ["xformOp:translate"]
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
             
             float physics:mass = 0.2
 
@@ -102,17 +110,21 @@ def Xform "World" {
                 uniform token physics:axis = "Y"
                 float physics:lowerLimit = -1.57
                 float physics:upperLimit = 1.57
-                rel physics:body0 = </World/robot>
-                rel physics:body1 = </World/robot/r_shoulder>
+                rel physics:body0 = </robot>
+                rel physics:body1 = </robot/r_shoulder>
                 point3f physics:localPos0 = (0.045, 0, -0.19)
                 point3f physics:localPos1 = (0, 0.03, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
             }
 
             def Xform "r_forearm" (
                 prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
             ) {
                 double3 xformOp:translate = (0, -0.08, 0)
-                uniform token[] xformOpOrder = ["xformOp:translate"]
+                uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
 
                 float physics:mass = 0.15
 
@@ -122,10 +134,14 @@ def Xform "World" {
                     uniform token physics:axis = "X"
                     float physics:lowerLimit = -3.14
                     float physics:upperLimit = 3.14
-                    rel physics:body0 = </World/robot/r_shoulder>
-                    rel physics:body1 = </World/robot/r_shoulder/r_forearm>
+                    rel physics:body0 = </robot/r_shoulder>
+                    rel physics:body1 = </robot/r_shoulder/r_forearm>
                     point3f physics:localPos0 = (0, -0.08, 0)
                     point3f physics:localPos1 = (0, 0.04, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
                 }
             }
         }
@@ -134,7 +150,7 @@ def Xform "World" {
             prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         ) {
             double3 xformOp:translate = (-0.045, 0, 0.205)
-            uniform token[] xformOpOrder = ["xformOp:translate"]
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
             
             float physics:mass = 0.35
 
@@ -144,17 +160,21 @@ def Xform "World" {
                 uniform token physics:axis = "X"
                 float physics:lowerLimit = -0.785
                 float physics:upperLimit = 0.785
-                rel physics:body0 = </World/robot>
-                rel physics:body1 = </World/robot/l_hip>
+                rel physics:body0 = </robot>
+                rel physics:body1 = </robot/l_hip>
                 point3f physics:localPos0 = (-0.045, 0, -0.095)
                 point3f physics:localPos1 = (0, 0.025, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
             }
 
             def Xform "l_knee" (
                 prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
             ) {
                 double3 xformOp:translate = (0, 0, -0.09)
-                uniform token[] xformOpOrder = ["xformOp:translate"]
+                uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
 
                 float physics:mass = 0.25
 
@@ -164,17 +184,21 @@ def Xform "World" {
                     uniform token physics:axis = "Y"
                     float physics:lowerLimit = -2.094
                     float physics:upperLimit = 0
-                    rel physics:body0 = </World/robot/l_hip>
-                    rel physics:body1 = </World/robot/l_hip/l_knee>
+                    rel physics:body0 = </robot/l_hip>
+                    rel physics:body1 = </robot/l_hip/l_knee>
                     point3f physics:localPos0 = (0, 0, -0.09)
                     point3f physics:localPos1 = (0, 0.045, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
                 }
 
                 def Xform "l_ankle" (
                     prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
                 ) {
                     double3 xformOp:translate = (0, 0, -0.09)
-                    uniform token[] xformOpOrder = ["xformOp:translate"]
+                    uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
 
                     float physics:mass = 0.15
 
@@ -184,17 +208,21 @@ def Xform "World" {
                         uniform token physics:axis = "Y"
                         float physics:lowerLimit = -0.785
                         float physics:upperLimit = 0.785
-                        rel physics:body0 = </World/robot/l_hip/l_knee>
-                        rel physics:body1 = </World/robot/l_hip/l_knee/l_ankle>
+                        rel physics:body0 = </robot/l_hip/l_knee>
+                        rel physics:body1 = </robot/l_hip/l_knee/l_ankle>
                         point3f physics:localPos0 = (0, 0, -0.09)
                         point3f physics:localPos1 = (0, 0.045, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
                     }
 
                     def Xform "l_foot" (
                         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
                     ) {
                         double3 xformOp:translate = (0, 0, -0.038)
-                        uniform token[] xformOpOrder = ["xformOp:translate"]
+                        uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
 
                         float physics:mass = 0.1
 
@@ -204,10 +232,14 @@ def Xform "World" {
                             uniform token physics:axis = "X"
                             float physics:lowerLimit = -0.524
                             float physics:upperLimit = 0.524
-                            rel physics:body0 = </World/robot/l_hip/l_knee/l_ankle>
-                            rel physics:body1 = </World/robot/l_hip/l_knee/l_ankle/l_foot>
+                            rel physics:body0 = </robot/l_hip/l_knee/l_ankle>
+                            rel physics:body1 = </robot/l_hip/l_knee/l_ankle/l_foot>
                             point3f physics:localPos0 = (0, 0, -0.038)
                             point3f physics:localPos1 = (0, 0.023, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
                         }
                     }
                 }
@@ -218,7 +250,7 @@ def Xform "World" {
             prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
         ) {
             double3 xformOp:translate = (0.045, 0, 0.205)
-            uniform token[] xformOpOrder = ["xformOp:translate"]
+            uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
             
             float physics:mass = 0.35
 
@@ -228,17 +260,21 @@ def Xform "World" {
                 uniform token physics:axis = "X"
                 float physics:lowerLimit = -0.785
                 float physics:upperLimit = 0.785
-                rel physics:body0 = </World/robot>
-                rel physics:body1 = </World/robot/r_hip>
+                rel physics:body0 = </robot>
+                rel physics:body1 = </robot/r_hip>
                 point3f physics:localPos0 = (0.045, 0, -0.095)
                 point3f physics:localPos1 = (0, 0.025, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
             }
 
             def Xform "r_knee" (
                 prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
             ) {
                 double3 xformOp:translate = (0, 0, -0.09)
-                uniform token[] xformOpOrder = ["xformOp:translate"]
+                uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
 
                 float physics:mass = 0.25
 
@@ -248,17 +284,21 @@ def Xform "World" {
                     uniform token physics:axis = "Y"
                     float physics:lowerLimit = -2.094
                     float physics:upperLimit = 0
-                    rel physics:body0 = </World/robot/r_hip>
-                    rel physics:body1 = </World/robot/r_hip/r_knee>
+                    rel physics:body0 = </robot/r_hip>
+                    rel physics:body1 = </robot/r_hip/r_knee>
                     point3f physics:localPos0 = (0, 0, -0.09)
                     point3f physics:localPos1 = (0, 0.045, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
                 }
 
                 def Xform "r_ankle" (
                     prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
                 ) {
                     double3 xformOp:translate = (0, 0, -0.09)
-                    uniform token[] xformOpOrder = ["xformOp:translate"]
+                    uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
 
                     float physics:mass = 0.15
 
@@ -268,17 +308,21 @@ def Xform "World" {
                         uniform token physics:axis = "Y"
                         float physics:lowerLimit = -0.785
                         float physics:upperLimit = 0.785
-                        rel physics:body0 = </World/robot/r_hip/r_knee>
-                        rel physics:body1 = </World/robot/r_hip/r_knee/r_ankle>
+                        rel physics:body0 = </robot/r_hip/r_knee>
+                        rel physics:body1 = </robot/r_hip/r_knee/r_ankle>
                         point3f physics:localPos0 = (0, 0, -0.09)
                         point3f physics:localPos1 = (0, 0.045, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
                     }
 
                     def Xform "r_foot" (
                         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
                     ) {
                         double3 xformOp:translate = (0, 0, -0.038)
-                        uniform token[] xformOpOrder = ["xformOp:translate"]
+                        uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
 
                         float physics:mass = 0.1
 
@@ -288,14 +332,17 @@ def Xform "World" {
                             uniform token physics:axis = "X"
                             float physics:lowerLimit = -0.524
                             float physics:upperLimit = 0.524
-                            rel physics:body0 = </World/robot/r_hip/r_knee/r_ankle>
-                            rel physics:body1 = </World/robot/r_hip/r_knee/r_ankle/r_foot>
+                            rel physics:body0 = </robot/r_hip/r_knee/r_ankle>
+                            rel physics:body1 = </robot/r_hip/r_knee/r_ankle/r_foot>
                             point3f physics:localPos0 = (0, 0, -0.038)
                             point3f physics:localPos1 = (0, 0.023, 0)
+                float drive:angular:physics:damping = 1000
+                float drive:angular:physics:stiffness = 10000
+                float drive:angular:physics:maxForce = 100
+                uniform token drive:angular:physics:type = "force"
                         }
                     }
                 }
             }
         }
     }
-}
