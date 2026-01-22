@@ -20,8 +20,9 @@ def Xform "World" {
         def Xform "mesh" (
             prepend references = [@../../../models/humanoid.glb@]
         ) {
+            double3 xformOp:rotateXYZ = (90, 0, 0)
             double3 xformOp:translate = (0, 0, 0)
-            uniform token[] xformOpOrder = ["xformOp:translate"]
+            uniform token[] xformOpOrder = ["xformOp:rotateXYZ", "xformOp:translate"]
         }
 
         def Xform "head" (
