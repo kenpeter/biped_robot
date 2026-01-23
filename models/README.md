@@ -245,6 +245,150 @@ cd models
 
 ---
 
+## Matching Simulation Physics with Reality (Continuous Rotation Servos)
+
+### Problem
+Training a model in Isaac Sim for continuous rotation servo failed with:
+1. **Movement too fast visually** - looked unrealistic
+2. **Overshoot** - servo kept rotating past target (e.g., 30° became 180°+)
+3. **Training failed** - NaN losses, model couldn't learn
+
+### Root Cause
+The default Isaac Sim joint configuration simulates **position-controlled servos** (stiff, fast), not **continuous rotation servos** (weak, velocity-controlled).
+
+**Wrong Configuration:**
+```python
+stiffness = 10000  # Position control (fights against any movement)
+damping = 1000     # High resistance
+maxForce = 100     # Too weak to overcome damping
+```
+
+This resulted in:
+- Simulation completing 90° in 0.467s vs real hardware 1.5s
+- Gradient explosion in training → NaN losses
+- Model learned wrong physics
+
+### The Fix
+
+**1. Joint Configuration (`head_robot.usda`)**
+```python
+# Continuous rotation servo (velocity-controlled, weak, slow)
+stiffness = 0        # No position holding (free rotation)
+damping = 1000       # High friction (slow, realistic movement)
+maxForce = 200       # Weak motor (can't accelerate instantly)
+mass = 2.0           # Heavier head (slower acceleration)
+```
+
+**2. Movement Control with Deceleration**
+```python
+# Monitor position while moving
+for _ in range(max_steps):
+    current_pos = robot.get_joint_positions()[0]
+    error_deg = target_deg - current_pos
+
+    # Stop when within 1° of target
+    if abs(error_deg) < 1.0:
+        break
+
+    # Decelerate in last 5° to prevent overshoot
+    if abs(error_deg) < 5.0:
+        scale = abs(error_deg) / 5.0
+        velocity = base_velocity * max(scale, 0.2)
+    else:
+        velocity = base_velocity
+```
+
+**3. Training Data Collection**
+Train on **angle errors**, not timing errors:
+```python
+# Collect: angle_delta → angle_error
+X_train.append([delta_deg])           # Input: -30°, +45°, etc.
+y_train.append([actual - target])     # Output: +0.8°, -1.0°, etc.
+```
+
+### Results After Fix
+
+**Movement Quality:**
+- ✅ Stops at target ±30° (error ~0.8°, realistic)
+- ✅ Smooth deceleration (no sudden stops)
+- ✅ Realistic slow servo speed
+- ✅ No overshoot past target
+
+**Training Quality:**
+```
+Training converged: Loss 0.000039 (no NaN!)
+Errors during training: ±1° (very good)
+
+Test predictions:
+  -90° → 1.531s right  (expected: 1.5s) ✅
+  -45° → 0.753s right  (expected: 0.75s) ✅
+   +0° → 0.021s left   (expected: 0.0s) ✅
+  +45° → 0.767s left   (expected: 0.75s) ✅
+  +90° → 1.515s left   (expected: 1.5s) ✅
+```
+
+### Key Lessons
+
+1. **Match servo type in simulation:**
+   - Continuous rotation → stiffness=0, high damping
+   - Position servo → high stiffness, low damping
+
+2. **Simulate weakness:**
+   - Real cheap servos are slow and weak
+   - Lower maxForce, increase mass/damping
+
+3. **Stop at target:**
+   - Velocity control needs position monitoring
+   - Add deceleration zone to prevent overshoot
+
+4. **Train on right metric:**
+   - Continuous rotation: learn angle corrections
+   - Position servos: learn timing corrections
+
+5. **NO RESETS during training (CRITICAL):**
+   - Physical resets (`set_joint_positions`) between movements cause physics glitches
+   - test_head_speed.py works because it NEVER resets - just continuous movement
+   - Let position accumulate naturally with error tracking
+   - Only use ±30° movements like test_head_speed.py does
+
+6. **Exact pattern matching:**
+   - Training MUST use exact same sequence as test script: -30° → 0° → +30° → 0°
+   - Must include 0.5s pause between moves (30 sim steps)
+   - Movement function must be byte-for-byte identical
+   - Different angles (±60°, ±90°, ±120°) cause drift even with resets
+
+### What Made Training Finally Work
+
+**Problem:** Training would drift past 180° while test_head_speed.py worked perfectly.
+
+**Root Cause:** Physical resets between cycles caused physics solver instabilities.
+
+**Solution:**
+```python
+# WRONG - causes drift:
+for angle in [15, 30, 45, 60, 90, 120]:
+    robot.set_joint_positions([0.0])  # ❌ Reset breaks physics
+    for target in [-angle, 0, angle, 0]:
+        move_to(target)
+
+# CORRECT - works like test_head_speed.py:
+current = 0.0
+for cycle in range(10):
+    for target in [-30.0, 0.0, 30.0, 0.0]:  # ✅ Only ±30°, no resets
+        current = move_to(target, current)
+        pause(0.5s)
+```
+
+**Key differences:**
+- ❌ Multiple angles (±15° to ±120°) → use only ±30°
+- ❌ Physical resets → continuous movement only
+- ❌ Multiple test angles per run → single ±30° pattern repeated
+- ✅ Exact copy of test_head_speed.py movement logic
+- ✅ Pauses between moves (0.5s)
+- ✅ Accumulated position tracking (no resets)
+
+---
+
 ## Troubleshooting
 
 ### Robot not visible?

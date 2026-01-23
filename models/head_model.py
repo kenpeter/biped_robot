@@ -40,11 +40,12 @@ class HeadServoModel:
         Returns:
             rotation_time: Seconds to rotate (positive=left, negative=right)
         """
-        x = np.array([[angle_deg]])
-        correction = self.forward(x)[0, 0]
-        # Base time from calibration + learned correction
-        base_time = angle_deg * self.seconds_per_degree
-        return base_time + correction
+        x = np.array([[angle_deg / 180.0]])  # Normalize input
+        angle_correction = self.forward(x)[0, 0] * 180.0  # Denormalize output
+        # Base time from calibration, adjusted for learned angle error
+        corrected_angle = angle_deg - angle_correction
+        base_time = corrected_angle * self.seconds_per_degree
+        return base_time
 
     def predict_for_target(self, current_deg, target_deg):
         """Predict rotation time to go from current angle to target angle."""
@@ -78,32 +79,48 @@ class HeadServoModel:
             weights = json.load(f)
         self.set_weights(weights)
 
-    def train(self, X_train, y_train, epochs=2000, lr=0.01):
-        """Train to predict timing corrections.
+    def train(self, X_train, y_train, epochs=2000, lr=0.001):
+        """Train to predict angle corrections.
 
-        X_train: target angle deltas
-        y_train: actual timing errors (actual_time - expected_time)
+        X_train: target angle deltas (will be normalized internally)
+        y_train: angle errors (actual - target)
         """
+        # Normalize inputs and outputs
+        X_norm = X_train / 180.0  # Scale to [-1, 1] range
+        y_norm = y_train / 180.0
+
         for epoch in range(epochs):
             total_loss = 0
-            for x, y_true in zip(X_train, y_train):
+            for x, y_true in zip(X_norm, y_norm):
                 x = x.reshape(1, -1)
                 y_true = y_true.reshape(1, -1)
                 y_pred = self.forward(x)
                 loss = np.mean((y_pred - y_true) ** 2)
                 total_loss += loss
-                delta2 = 2 * (y_pred - y_true) / 1
+
+                # Backpropagation with gradient clipping
+                delta2 = 2 * (y_pred - y_true) / len(X_norm)
                 dW2 = np.dot(self.h.T, delta2)
                 db2 = np.sum(delta2, axis=0)
                 delta1 = np.dot(delta2, self.W2.T) * self.relu_derivative(self.h)
                 dW1 = np.dot(self.x.T, delta1)
                 db1 = np.sum(delta1, axis=0)
+
+                # Gradient clipping to prevent explosion
+                max_grad = 10.0
+                dW2 = np.clip(dW2, -max_grad, max_grad)
+                db2 = np.clip(db2, -max_grad, max_grad)
+                dW1 = np.clip(dW1, -max_grad, max_grad)
+                db1 = np.clip(db1, -max_grad, max_grad)
+
                 self.W2 -= lr * dW2
                 self.b2 -= lr * db2
                 self.W1 -= lr * dW1
                 self.b1 -= lr * db1
+
             if (epoch + 1) % 500 == 0:
-                print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss/len(X_train):.6f}")
+                avg_loss = total_loss / len(X_norm)
+                print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.6f}")
 
 
 if __name__ == "__main__":

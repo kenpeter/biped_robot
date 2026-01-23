@@ -29,7 +29,7 @@ def Xform "Robot" (
     )
     {
         rel material:binding = </Robot/Looks/HeadMaterial>
-        float physics:mass = 0.5
+        float physics:mass = 2.0
         double size = 0.15
         double3 xformOp:translate = (0, 0, 0.6499999761581421)
         uniform token[] xformOpOrder = ["xformOp:translate"]
@@ -80,8 +80,8 @@ def Xform "Robot" (
     )
     {
         float drive:angular:physics:damping = 1000
-        float drive:angular:physics:maxForce = 100
-        float drive:angular:physics:stiffness = 10000
+        float drive:angular:physics:maxForce = 200
+        float drive:angular:physics:stiffness = 0
         uniform token drive:angular:physics:type = "force"
         uniform token physics:axis = "Z"
         prepend rel physics:body0 = </Robot/base>

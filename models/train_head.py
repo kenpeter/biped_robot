@@ -33,73 +33,96 @@ print("="*50)
 print(f"Timing: {SECONDS_PER_360}s per 360° ({SECONDS_PER_DEGREE*1000:.2f}ms per degree)")
 
 
-def rotate_by_velocity(target_delta_deg, velocity_deg_per_sec=60.0):
-    """Simulate continuous rotation by applying velocity for calculated time.
+def rotate_by_time(current_deg, target_deg):
+    """EXACT COPY from test_head_speed.py move_to_angle() - working version!
 
-    Returns actual angle achieved.
+    Returns (actual_deg, time_used, angle_error).
     """
-    if abs(target_delta_deg) < 0.1:
-        return 0.0
+    # COPIED DIRECTLY FROM test_head_speed.py
+    delta_deg = target_deg - current_deg
+    if abs(delta_deg) < 0.5:
+        return current_deg, 0.0, 0.0
 
-    # Calculate expected duration
-    duration = abs(target_delta_deg) / velocity_deg_per_sec
-    steps = int(duration / SIM_DT)
+    # Calculate time and velocity
+    VELOCITY_DEG_PER_SEC = 60.0  # 360 / 6
+    time_needed = abs(delta_deg) / VELOCITY_DEG_PER_SEC
+    velocity_rad = np.radians(VELOCITY_DEG_PER_SEC) * np.sign(delta_deg)
 
-    # Get starting position
-    start_rad = robot.get_joint_positions()[0]
+    # Move until we reach target or timeout
+    max_steps = int((time_needed + 0.5) / SIM_DT)  # Add buffer time
+    for i in range(max_steps):
+        current_rad = robot.get_joint_positions()[0]
+        current_deg_now = np.degrees(current_rad)
+        error_deg = target_deg - current_deg_now
 
-    # Apply velocity (direction based on sign)
-    velocity_rad = np.radians(velocity_deg_per_sec) * np.sign(target_delta_deg)
+        # Stop when within 1 degree of target (same as test_head_speed.py)
+        if abs(error_deg) < 1.0:
+            break
 
-    for _ in range(steps):
+        # Reduce velocity as we approach target (deceleration)
+        if abs(error_deg) < 5.0:
+            # Slow down in last 5 degrees (same as test_head_speed.py)
+            scale = abs(error_deg) / 5.0
+            current_velocity = velocity_rad * max(scale, 0.2)
+        else:
+            current_velocity = velocity_rad
+
         robot._articulation_view.set_joint_velocity_targets(
-            velocities=np.array([velocity_rad]),
+            velocities=np.array([current_velocity]),
             joint_indices=np.array([0])
         )
         world.step(render=True)
 
-    # Stop
+    # Stop completely
     robot._articulation_view.set_joint_velocity_targets(
         velocities=np.array([0.0]),
         joint_indices=np.array([0])
     )
-    for _ in range(10):
+    # Same as test_head_speed.py
+    for _ in range(20):
         world.step(render=True)
 
-    # Measure actual movement
-    end_rad = robot.get_joint_positions()[0]
-    actual_delta_deg = np.degrees(end_rad - start_rad)
+    # Measure result
+    actual_deg = np.degrees(robot.get_joint_positions()[0])
+    angle_error = actual_deg - target_deg
+    time_used = time_needed
 
-    return actual_delta_deg
+    return actual_deg, time_used, angle_error
 
 
 print("\n[1/3] Collecting training data...")
 X_train = []  # Target angle deltas
-y_train = []  # Timing corrections needed
+y_train = []  # Angle error corrections needed
 
-# Test various rotation amounts
-target_deltas = [-120, -90, -60, -30, -15, 15, 30, 60, 90, 120]
+# EXACT SAME as test_head_speed.py - ONLY ±30° movements!
+print("Sequence: left 30° → center → right 30° → center (REPEATING)")
+print("EXACTLY like test_head_speed.py\n")
 
-for target_deg in target_deltas:
-    # Reset to center first
-    robot._articulation_view.set_joint_position_targets(
-        positions=np.array([0.0]),
-        joint_indices=np.array([0])
-    )
-    for _ in range(60):
-        world.step(render=True)
+# Start at center like test_head_speed.py
+current_pos = 0.0
 
-    # Rotate by velocity
-    actual_deg = rotate_by_velocity(target_deg)
+# Do 10 cycles of the EXACT pattern from test_head_speed.py
+for cycle_num in range(10):
+    print(f"--- Cycle {cycle_num + 1} ---")
 
-    # Calculate timing error
-    expected_time = abs(target_deg) * SECONDS_PER_DEGREE
-    actual_time = abs(actual_deg) * SECONDS_PER_DEGREE
-    timing_error = actual_time - expected_time
+    # EXACT SAME sequence as test_head_speed.py infinite loop
+    for target_deg in [-30.0, 0.0, 30.0, 0.0]:
+        # EXACT SAME as test_head_speed.py: current = move_to_angle(target, current)
+        actual_deg, time_used, angle_error = rotate_by_time(current_pos, target_deg)
 
-    X_train.append([target_deg])
-    y_train.append([timing_error])
-    print(f"  Target: {target_deg:+4d}° -> Actual: {actual_deg:+7.1f}° (error: {timing_error*1000:+.1f}ms)")
+        # Store training data (angle delta → angle error)
+        delta = target_deg - current_pos
+        X_train.append([delta])
+        y_train.append([angle_error])
+
+        print(f"  {current_pos:+6.1f}° → {target_deg:+6.1f}° (Δ{delta:+6.1f}°): actual={actual_deg:+6.1f}°, time={time_used:.3f}s, error={angle_error:+5.2f}°")
+
+        # EXACT SAME as test_head_speed.py: current = actual_deg
+        current_pos = actual_deg
+
+        # Add pause like test_head_speed.py does with pytime.sleep(0.5)
+        for _ in range(30):  # 0.5s pause
+            world.step(render=True)
 
 X_train = np.array(X_train)
 y_train = np.array(y_train)
