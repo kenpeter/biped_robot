@@ -1,74 +1,177 @@
 #!/usr/bin/env python3
-"""Deploy trained head servo model to Jetson.
-Uses head_model.py for inference, controls servo on /dev/ttyUSB1.
+"""Deploy trained head servo model to Jetson for continuous rotation servo.
+Uses timed rotation instead of position commands.
 """
 import serial
 import time
-import json
+import sys
 
 SERIAL_PORT = '/dev/ttyUSB1'
 BAUD_RATE = 9600
 SERVO_CHANNEL = 0
 MODEL_PATH = '/home/jetson/work/biped_robot/models/head_model_weights.json'
 
+# Continuous rotation servo calibration (from testing)
+DEADBAND_LOW = 1440
+DEADBAND_HIGH = 1558
+STOP_VALUE = 1500
+SPEED_LEFT = 1650   # robot looks left
+SPEED_RIGHT = 1350  # robot looks right
+
 from head_model import HeadServoModel
 
 
-def move_servo(ser, servo_id, position, duration_ms=1000):
-    position = int(position)
-    time_lo = duration_ms & 0xFF
-    time_hi = (duration_ms >> 8) & 0xFF
-    pos_lo = position & 0xFF
-    pos_hi = (position >> 8) & 0xFF
-    cmd = bytes([0x55, 0x55, 0x08, 0x03, 0x01,
-                 time_lo, time_hi, servo_id, pos_lo, pos_hi])
+def send_speed(ser, speed):
+    """Send speed command to continuous rotation servo."""
+    speed = int(max(500, min(2500, speed)))
+    cmd = bytes([0x55, 0x55, 0x08, 0x03, 0x01, 0, 0,
+                 SERVO_CHANNEL, speed & 0xFF, (speed >> 8) & 0xFF])
     ser.write(cmd)
-    return cmd
+
+
+def stop_servo(ser):
+    """Stop servo rotation."""
+    send_speed(ser, STOP_VALUE)
+
+
+def rotate(ser, angle_deg, model):
+    """Rotate head by specified degrees using trained model.
+
+    Args:
+        ser: Serial connection
+        angle_deg: Degrees to rotate (positive=left, negative=right)
+        model: Trained HeadServoModel
+    """
+    if abs(angle_deg) < 0.5:
+        return
+
+    # Get rotation time from model
+    rotation_time = model.predict(angle_deg)
+
+    # Direction based on sign
+    if rotation_time > 0:
+        speed = SPEED_LEFT
+    else:
+        speed = SPEED_RIGHT
+        rotation_time = abs(rotation_time)
+
+    # Rotate
+    send_speed(ser, speed)
+    time.sleep(rotation_time)
+    stop_servo(ser)
+
+
+class HeadController:
+    """Track head position and control rotation."""
+
+    def __init__(self, ser, model):
+        self.ser = ser
+        self.model = model
+        self.current_angle = 0.0  # Assume starting at center
+
+    def go_to(self, target_deg):
+        """Rotate to absolute angle (0 = forward)."""
+        delta = target_deg - self.current_angle
+        if abs(delta) < 0.5:
+            return
+        rotate(self.ser, delta, self.model)
+        self.current_angle = target_deg
+
+    def rotate_by(self, delta_deg):
+        """Rotate by relative amount."""
+        rotate(self.ser, delta_deg, self.model)
+        self.current_angle += delta_deg
+
+    def center(self):
+        """Return to center (forward facing)."""
+        self.go_to(0)
+
+    def stop(self):
+        """Stop any rotation."""
+        stop_servo(self.ser)
 
 
 def main():
     print("="*50)
-    print("HEAD SERVO MODEL DEPLOYMENT")
+    print("CONTINUOUS ROTATION HEAD SERVO DEPLOYMENT")
     print("="*50)
 
     print(f"\nConnecting to {SERIAL_PORT}...")
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
     time.sleep(0.1)
-    print("✓ Connected")
+    print("[OK] Connected")
 
     print(f"\nLoading model from {MODEL_PATH}...")
     model = HeadServoModel()
-    model.load(MODEL_PATH)
+    try:
+        model.load(MODEL_PATH)
+        print("[OK] Model loaded")
+    except FileNotFoundError:
+        print("[WARN] No trained model found, using default timing")
 
-    print("\nTest predictions:")
-    for angle in [-30, -15, 0, 15, 30]:
-        pos = model.predict(angle)
-        print(f"  {angle:+3d}° -> {pos:.0f}")
+    print(f"\nTiming: {model.seconds_per_degree*1000:.2f}ms per degree")
+
+    head = HeadController(ser, model)
 
     print("\n" + "-"*50)
-    print("Starting oscillation ±30° (Ctrl+C to stop)\n")
+    print("Commands: left/right <deg>, center, stop, quit")
+    print("Example: left 45, right 90, center")
+    print("-"*50 + "\n")
 
-    target_angles = [-30, 30]
-    idx = 0
+    # Interactive mode or demo mode
+    if len(sys.argv) > 1 and sys.argv[1] == '--demo':
+        print("Demo mode: oscillating ±45° (Ctrl+C to stop)\n")
+        try:
+            while True:
+                print("-> left 45°")
+                head.go_to(45)
+                time.sleep(1)
+                print("-> right 45°")
+                head.go_to(-45)
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\nStopping...")
+            head.center()
+    else:
+        # Interactive mode
+        try:
+            while True:
+                cmd = input(f"[angle: {head.current_angle:+.0f}°] > ").strip().lower()
 
-    try:
-        while True:
-            angle = target_angles[idx]
-            pos = model.predict(angle)
-            cmd = move_servo(ser, SERVO_CHANNEL, pos, duration_ms=1000)
-            print(f"→ {angle:+3d}° (pos: {pos:.0f})")
-            time.sleep(2)
-            idx = (idx + 1) % len(target_angles)
+                if not cmd:
+                    continue
+                elif cmd == 'quit' or cmd == 'q':
+                    break
+                elif cmd == 'stop' or cmd == 's':
+                    head.stop()
+                    print("Stopped")
+                elif cmd == 'center' or cmd == 'c':
+                    head.center()
+                    print(f"Centered (angle: {head.current_angle:+.0f}°)")
+                elif cmd.startswith('left') or cmd.startswith('l '):
+                    parts = cmd.split()
+                    deg = float(parts[1]) if len(parts) > 1 else 45
+                    head.rotate_by(deg)
+                    print(f"Rotated left {deg}° (angle: {head.current_angle:+.0f}°)")
+                elif cmd.startswith('right') or cmd.startswith('r '):
+                    parts = cmd.split()
+                    deg = float(parts[1]) if len(parts) > 1 else 45
+                    head.rotate_by(-deg)
+                    print(f"Rotated right {deg}° (angle: {head.current_angle:+.0f}°)")
+                elif cmd.startswith('go '):
+                    target = float(cmd.split()[1])
+                    head.go_to(target)
+                    print(f"Went to {target}° (angle: {head.current_angle:+.0f}°)")
+                else:
+                    print("Unknown command. Use: left/right <deg>, center, stop, quit")
 
-    except KeyboardInterrupt:
-        print("\n\nStopping...")
-        center = 1500
-        move_servo(ser, SERVO_CHANNEL, center, duration_ms=500)
-        print(f"✓ Center ({center})")
+        except KeyboardInterrupt:
+            print("\n")
 
-    finally:
-        ser.close()
-        print("✓ Done")
+    print("Centering head...")
+    head.center()
+    ser.close()
+    print("[OK] Done")
 
 
 if __name__ == "__main__":

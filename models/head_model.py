@@ -1,6 +1,6 @@
-"""Simple neural network for head servo control.
-Input: target_angle (-30° to +30°)
-Output: servo_position (500-2500)
+"""Neural network for continuous rotation head servo control.
+Input: target_angle (-180° to +180°)
+Output: rotation_time (seconds) - positive=left, negative=right
 """
 import numpy as np
 import json
@@ -17,6 +17,9 @@ class HeadServoModel:
         self.W2 = np.random.randn(self.hidden_size, self.output_size) * 0.1
         self.b2 = np.zeros(self.output_size)
 
+        # Calibration from real servo testing
+        self.seconds_per_degree = 6.0 / 360.0  # 6 sec for 360°
+
     def relu(self, x):
         return np.maximum(0, x)
 
@@ -29,18 +32,32 @@ class HeadServoModel:
         return np.dot(self.h, self.W2) + self.b2
 
     def predict(self, angle_deg):
-        angle_deg = np.clip(angle_deg, -30, 30)
+        """Predict rotation time to reach angle from current position.
+
+        Args:
+            angle_deg: Target angle change in degrees (positive=left, negative=right)
+
+        Returns:
+            rotation_time: Seconds to rotate (positive=left, negative=right)
+        """
         x = np.array([[angle_deg]])
-        output = self.forward(x)
-        position = 1500 + output[0, 0] * 1000
-        return np.clip(position, 500, 2500)
+        correction = self.forward(x)[0, 0]
+        # Base time from calibration + learned correction
+        base_time = angle_deg * self.seconds_per_degree
+        return base_time + correction
+
+    def predict_for_target(self, current_deg, target_deg):
+        """Predict rotation time to go from current angle to target angle."""
+        delta = target_deg - current_deg
+        return self.predict(delta)
 
     def get_weights(self):
         return {
             'W1': self.W1.tolist(),
             'b1': self.b1.tolist(),
             'W2': self.W2.tolist(),
-            'b2': self.b2.tolist()
+            'b2': self.b2.tolist(),
+            'seconds_per_degree': self.seconds_per_degree
         }
 
     def set_weights(self, weights):
@@ -48,6 +65,8 @@ class HeadServoModel:
         self.b1 = np.array(weights['b1'])
         self.W2 = np.array(weights['W2'])
         self.b2 = np.array(weights['b2'])
+        if 'seconds_per_degree' in weights:
+            self.seconds_per_degree = weights['seconds_per_degree']
 
     def save(self, path):
         weights = self.get_weights()
@@ -60,6 +79,11 @@ class HeadServoModel:
         self.set_weights(weights)
 
     def train(self, X_train, y_train, epochs=2000, lr=0.01):
+        """Train to predict timing corrections.
+
+        X_train: target angle deltas
+        y_train: actual timing errors (actual_time - expected_time)
+        """
         for epoch in range(epochs):
             total_loss = 0
             for x, y_true in zip(X_train, y_train):
@@ -84,12 +108,13 @@ class HeadServoModel:
 
 if __name__ == "__main__":
     model = HeadServoModel()
-    X_train = np.array([[-30], [0], [30]])
-    y_train = np.array([[-1000], [0], [1000]])
+    # Simple test: no correction needed for ideal servo
+    X_train = np.array([[-90], [-45], [0], [45], [90]])
+    y_train = np.array([[0], [0], [0], [0], [0]])  # zero correction
     print("Training head servo model...")
-    model.train(X_train, y_train, epochs=1000, lr=0.1)
+    model.train(X_train, y_train, epochs=1000, lr=0.01)
     model.save("head_model_weights.json")
-    print("\nTest predictions:")
-    for angle in [-30, -15, 0, 15, 30]:
-        pos = model.predict(angle)
-        print(f"  {angle:+3d}° -> {pos:.0f}")
+    print("\nTest predictions (angle -> time):")
+    for angle in [-90, -45, 0, 45, 90]:
+        t = model.predict(angle)
+        print(f"  {angle:+4d}° -> {t:+.3f}s")
