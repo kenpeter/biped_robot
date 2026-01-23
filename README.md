@@ -26,7 +26,8 @@
 
 **Servos:**
 - Hiwonder servos on /dev/ttyUSB1 @ 9600 baud
-- Position range: 500-2500 (0-180 degrees)
+- Position servos: 500-2500 (0-180 degrees)
+- **Head servo (channel 0): Continuous rotation servo** (360° capable)
 - Binary protocol: `[0x55, 0x55, 0x08, 0x03, 0x01, time_lo, time_hi, servo_id, pos_lo, pos_hi]`
 
 **Sensors:**
@@ -102,20 +103,26 @@ cd /home/kenpeter/work/biped_robot/models
 
 ### Manual Head Servo Control (Jetson)
 
+The head servo is a **continuous rotation servo** (360° capable), not a positional servo.
+
 ```bash
 cd /home/jetson/work/biped_robot/models
 
-python3 move_head.py              # show current position
-python3 move_head.py 1500         # go to position (500-2500)
-python3 move_head.py +100         # move +100 from current
-python3 move_head.py -100         # move -100 from current
-python3 move_head.py center 1550  # set 1550 as center
-python3 move_head.py home         # go to center
+python3 move_head.py              # show status
+python3 move_head.py stop         # stop rotation
+python3 move_head.py left 90      # rotate left 90 degrees
+python3 move_head.py right 45     # rotate right 45 degrees
+python3 move_head.py left         # rotate left continuously
+python3 move_head.py right        # rotate right continuously
+python3 move_head.py speed 1600   # set raw speed value
 python3 move_head.py off          # release servo (torque off)
-python3 move_head.py on           # lock servo at saved position
 ```
 
-Position range: 500-2500 (maps to 0-180 degrees, ~11 units per degree)
+**Continuous rotation servo characteristics (robot's perspective):**
+- Deadband (stop): 1440-1558
+- Above 1558: robot looks left (higher = faster)
+- Below 1440: robot looks right (lower = faster)
+- Timing: ~6 seconds for full 360° rotation
 
 ### Deploy to Jetson
 
