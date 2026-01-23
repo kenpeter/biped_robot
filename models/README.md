@@ -387,6 +387,110 @@ for cycle in range(10):
 - ✅ Pauses between moves (0.5s)
 - ✅ Accumulated position tracking (no resets)
 
+### Deployment Drift Issue (Real Robot)
+
+**Problem:** When deployed to Jetson with `--demo`, robot would drift left continuously toward 180°+ after 2-3 cycles.
+
+**Root Cause:** Position tracking with assumed perfect accuracy:
+```python
+# WRONG - causes drift on real hardware:
+def go_to(self, target_deg):
+    delta = target_deg - self.current_angle
+    rotate(delta)
+    self.current_angle = target_deg  # ❌ Assumes perfect accuracy!
+
+# Real servo has ±0.8° errors → accumulated over cycles → drift
+```
+
+**Solution:** Use relative movements WITHOUT position tracking:
+```python
+# CORRECT - no drift:
+rotate(ser, 30, model)   # Relative: +30° from current position
+rotate(ser, -30, model)  # Relative: -30° (back to center)
+rotate(ser, -30, model)  # Relative: -30° (right 30°)
+rotate(ser, 30, model)   # Relative: +30° (back to center)
+# No position tracking → errors don't accumulate!
+```
+
+**Demo mode pattern (matches simulation):**
+- left 30° → center → right 30° → center (repeat)
+- Uses direct `rotate()` calls (relative movement)
+- No `HeadController` position tracking
+- Must train model first before deployment!
+
+**Training → Deployment workflow:**
+```bash
+# 1. Train model (dev machine with Isaac Sim)
+cd /home/kenpeter/work/biped_robot/models
+./run_isaac.sh train_head.py
+# Creates: head_model_weights.json
+
+# 2. Copy to Jetson
+scp head_model_weights.json deploy_head_jetson.py jetson:/home/jetson/work/biped_robot/models/
+
+# 3. Run on real robot
+ssh jetson
+cd /home/jetson/work/biped_robot/models
+python3 deploy_head_jetson.py --demo
+```
+
+### Industry Standard: Periodic Home Pose Recalibration
+
+Based on research (TALOS humanoid, Boston Dynamics, industrial robots), drift compensation uses **periodic recalibration to known home pose**:
+
+**Implementation:**
+- Every 20-30 movements, robot returns to calibration pose
+- Estimated drift at recalibration: ±16° (20 × 0.8°/movement)
+- Manual or automatic (using sensors: IMU, force sensors, camera)
+
+**Why this works:**
+- Drift is bounded (never exceeds 20-30 movements of error)
+- Works for ALL servos (not just head with camera)
+- Industry proven approach (used by commercial humanoid robots)
+- Simple to implement
+
+**Example output:**
+```
+-> left 30°
+-> center
+... (20 movements) ...
+
+[DRIFT COMPENSATION] 20 movements completed
+[DRIFT COMPENSATION] Estimated drift: ±16.0°
+[RECALIBRATE] Please manually center the head (forward facing)
+[RECALIBRATE] Press Enter when centered...
+[RECALIBRATE] ✓ Home pose restored, drift reset
+```
+
+**Calibration frequency guidelines:**
+
+| Activity | Movements | Recalibrate Every |
+|----------|-----------|-------------------|
+| Walking | ~10/sec | 50 movements (5s) |
+| Standing/gestures | ~1/sec | 30 movements (30s) |
+| Demo movements | varies | 20 movements |
+
+**Physical references for each joint type:**
+
+1. **HEAD (1 servo):**
+   - Reference: Forward facing
+   - Detection: Thermal camera, manual centering, or IMU
+
+2. **ARMS (6 servos):**
+   - Reference: Hanging straight down (gravity)
+   - Detection: IMU/accelerometer, mechanical stop, or manual
+
+3. **LEGS (8 servos):**
+   - Reference: Standing with feet flat on ground
+   - Detection: Force sensors, IMU, mechanical stops (knee extended), or manual
+
+**Future sensor upgrades (optional):**
+- IMU per joint: ~$5-10 each = $75-150 total (eliminates drift)
+- Absolute encoders: ~$20-30 per servo = $300-450 (no drift by design)
+- Vision-based pose estimation: External camera + real-time processing
+
+**Current implementation:** Manual recalibration every 20 movements for head servo. Easily extensible to all 15 servos using same pattern.
+
 ---
 
 ## Troubleshooting

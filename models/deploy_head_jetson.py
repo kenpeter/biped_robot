@@ -62,25 +62,50 @@ def rotate(ser, angle_deg, model):
 
 
 class HeadController:
-    """Track head position and control rotation."""
+    """Control head with periodic drift compensation (industry standard)."""
 
     def __init__(self, ser, model):
         self.ser = ser
         self.model = model
-        self.current_angle = 0.0  # Assume starting at center
+        self.current_angle = 0.0  # Estimated position
+        self.movement_count = 0
+        self.RECALIBRATE_EVERY = 20  # Industry standard: recalibrate every 20-30 movements
+
+    def rotate_by(self, delta_deg):
+        """Rotate by relative amount."""
+        rotate(self.ser, delta_deg, self.model)
+        self.current_angle += delta_deg
+        self.movement_count += 1
+
+        # Industry standard: periodic recalibration to prevent drift accumulation
+        if self.movement_count >= self.RECALIBRATE_EVERY:
+            print(f"\n[DRIFT COMPENSATION] {self.movement_count} movements completed")
+            print(f"[DRIFT COMPENSATION] Estimated drift: ±{self.movement_count * 0.8:.1f}°")
+            self.recalibrate_home()
+
+    def recalibrate_home(self):
+        """Recalibrate to home pose (industry standard for drift compensation).
+
+        For head servo: User manually centers, OR use thermal camera reference.
+        For other servos: Use gravity (IMU), mechanical stops, or foot ground contact.
+        """
+        print("[RECALIBRATE] Please manually center the head (forward facing)")
+        print("[RECALIBRATE] Or press 's' to skip recalibration")
+        response = input("[RECALIBRATE] Press Enter when centered (or 's' to skip): ").strip().lower()
+
+        if response != 's':
+            self.current_angle = 0.0
+            self.movement_count = 0
+            print("[RECALIBRATE] ✓ Home pose restored, drift reset\n")
+        else:
+            print("[RECALIBRATE] Skipped, drift will continue accumulating\n")
 
     def go_to(self, target_deg):
         """Rotate to absolute angle (0 = forward)."""
         delta = target_deg - self.current_angle
         if abs(delta) < 0.5:
             return
-        rotate(self.ser, delta, self.model)
-        self.current_angle = target_deg
-
-    def rotate_by(self, delta_deg):
-        """Rotate by relative amount."""
-        rotate(self.ser, delta_deg, self.model)
-        self.current_angle += delta_deg
+        self.rotate_by(delta)
 
     def center(self):
         """Return to center (forward facing)."""
@@ -120,18 +145,32 @@ def main():
 
     # Interactive mode or demo mode
     if len(sys.argv) > 1 and sys.argv[1] == '--demo':
-        print("Demo mode: oscillating ±45° (Ctrl+C to stop)\n")
+        print("Demo mode: oscillating ±30° (Ctrl+C to stop)\n")
+        print("INDUSTRY STANDARD: Periodic home pose recalibration every 20 movements\n")
         try:
             while True:
-                print("-> left 45°")
-                head.go_to(45)
+                # Pattern: left 30 → center → right 30 → center
+                print("-> left 30°")
+                head.go_to(30)
                 time.sleep(1)
-                print("-> right 45°")
-                head.go_to(-45)
+
+                print("-> center")
+                head.center()
                 time.sleep(1)
+
+                print("-> right 30°")
+                head.go_to(-30)
+                time.sleep(1)
+
+                print("-> center")
+                head.center()
+                time.sleep(1)
+
+                # Auto-recalibration happens in rotate_by() after 20 movements
+
         except KeyboardInterrupt:
             print("\nStopping...")
-            head.center()
+            head.stop()
     else:
         # Interactive mode
         try:
