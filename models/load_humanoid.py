@@ -8,7 +8,7 @@ from isaacsim.core.prims import SingleArticulation
 from pxr import UsdLux, Gf
 import numpy as np
 
-USD_PATH = "/home/kenpeter/work/biped_robot/src/humanoid_description/usd/humanoid_simple.usda"
+USD_PATH = "/home/jetson/work/biped_robot/models/humanoid_simple.usda"
 
 # Setup world
 world = World(stage_units_in_meters=1.0, physics_dt=1.0/60.0)
