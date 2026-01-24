@@ -1,5 +1,5 @@
-"""Train head servo model in Isaac Sim for continuous rotation servo.
-Simulates velocity-controlled rotation and learns timing corrections.
+"""Test head servo in Isaac Sim to verify timing calibration.
+Measures actual rotation speed and saves calibration.
 """
 from isaacsim import SimulationApp
 simulation_app = SimulationApp({"headless": False})
@@ -22,15 +22,15 @@ add_reference_to_stage(usd_path=usd_path, prim_path="/World/Robot")
 robot = world.scene.add(SingleArticulation(prim_path="/World/Robot", name="robot"))
 world.reset()
 
-# Continuous rotation servo parameters (from real hardware testing)
+# Default calibration (from real hardware testing)
 SECONDS_PER_360 = 6.0
 SECONDS_PER_DEGREE = SECONDS_PER_360 / 360.0
 SIM_DT = 1.0 / 60.0  # Isaac Sim timestep
 
 print("\n" + "="*50)
-print("TRAINING CONTINUOUS ROTATION HEAD SERVO")
+print("HEAD SERVO TIMING TEST")
 print("="*50)
-print(f"Timing: {SECONDS_PER_360}s per 360° ({SECONDS_PER_DEGREE*1000:.2f}ms per degree)")
+print(f"Default: {SECONDS_PER_360}s per 360° ({SECONDS_PER_DEGREE*1000:.2f}ms per degree)")
 
 
 def rotate_by_time(current_deg, target_deg):
@@ -90,56 +90,40 @@ def rotate_by_time(current_deg, target_deg):
     return actual_deg, time_used, angle_error
 
 
-print("\n[1/3] Collecting training data...")
-X_train = []  # Target angle deltas
-y_train = []  # Angle error corrections needed
+print("\nTesting ±30° movements...")
+print("Sequence: left 30° → center → right 30° → center\n")
 
-# EXACT SAME as test_head_speed.py - ONLY ±30° movements!
-print("Sequence: left 30° → center → right 30° → center (REPEATING)")
-print("EXACTLY like test_head_speed.py\n")
-
-# Start at center like test_head_speed.py
 current_pos = 0.0
+total_error = 0.0
+count = 0
 
-# Do 10 cycles of the EXACT pattern from test_head_speed.py
-for cycle_num in range(10):
+# Test 5 cycles
+for cycle_num in range(5):
     print(f"--- Cycle {cycle_num + 1} ---")
 
-    # EXACT SAME sequence as test_head_speed.py infinite loop
     for target_deg in [-30.0, 0.0, 30.0, 0.0]:
-        # EXACT SAME as test_head_speed.py: current = move_to_angle(target, current)
         actual_deg, time_used, angle_error = rotate_by_time(current_pos, target_deg)
 
-        # Store training data (angle delta → angle error)
         delta = target_deg - current_pos
-        X_train.append([delta])
-        y_train.append([angle_error])
+        total_error += abs(angle_error)
+        count += 1
 
-        print(f"  {current_pos:+6.1f}° → {target_deg:+6.1f}° (Δ{delta:+6.1f}°): actual={actual_deg:+6.1f}°, time={time_used:.3f}s, error={angle_error:+5.2f}°")
+        print(f"  {current_pos:+6.1f}° → {target_deg:+6.1f}° (Δ{delta:+6.1f}°): "
+              f"actual={actual_deg:+6.1f}°, error={angle_error:+5.2f}°")
 
-        # EXACT SAME as test_head_speed.py: current = actual_deg
         current_pos = actual_deg
 
-        # Add pause like test_head_speed.py does with pytime.sleep(0.5)
-        for _ in range(30):  # 0.5s pause
+        # Pause
+        for _ in range(30):
             world.step(render=True)
 
-X_train = np.array(X_train)
-y_train = np.array(y_train)
+avg_error = total_error / count
+print(f"\nAverage error: {avg_error:.2f}°")
 
-print("\n[2/3] Training neural network...")
+print("\nSaving calibration...")
 model = HeadServoModel()
 model.seconds_per_degree = SECONDS_PER_DEGREE
-model.train(X_train, y_train, epochs=2000, lr=0.01)
-
-print("\n[3/3] Saving model...")
 model.save("head_model_weights.json")
-
-print("\nTest predictions (angle -> rotation time):")
-for angle in [-90, -45, 0, 45, 90]:
-    t = model.predict(angle)
-    direction = "left" if t > 0 else "right" if t < 0 else "none"
-    print(f"  {angle:+4d}° -> {abs(t):.3f}s {direction}")
 
 simulation_app.close()
 print("\n[OK] Saved to head_model_weights.json")
