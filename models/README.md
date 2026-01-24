@@ -72,12 +72,12 @@ cd /home/kenpeter/work/biped_robot/models
 ```
 biped_robot/
 └── models/
-    ├── # Neural Network
-    │   head_model.py           # Network architecture
-    │   head_model_weights.json # Trained weights
+    ├── # Timing Model
+    │   head_model.py           # Simple linear timing model
+    │   head_model_weights.json # Calibration (seconds_per_degree)
     │
-    ├── # Training (Isaac Sim)
-    │   train_head.py           # Train in Isaac Sim
+    ├── # Testing (Isaac Sim)
+    │   train_head.py           # Test timing in Isaac Sim
     │   run_isaac.sh            # Isaac Sim launcher
     │
     ├── # Robot Models
@@ -101,12 +101,20 @@ biped_robot/
 
 ## Quick Start
 
-### Train Head Servo Model
+### Test Head Servo Timing (Isaac Sim)
+
+**Note:** The head model now uses simple linear timing (no neural network). Training is replaced by timing verification.
 
 ```bash
 cd /home/kenpeter/work/biped_robot/models
-./run_isaac.sh train_head.py
+./run_isaac.sh train_head.py  # Tests timing accuracy, saves calibration
 ```
+
+**Model simplified:**
+- Removed neural network (was trained for simulation-specific errors)
+- Now uses: `rotation_time = angle_deg × 0.01667 seconds`
+- Calibration stored in `head_model_weights.json` (just one value)
+- Real hardware drift fixes applied in deployment code (not model)
 
 ### Manual Head Servo Control (Jetson)
 
@@ -127,9 +135,11 @@ python3 move_head.py off          # release servo (torque off)
 
 **Continuous rotation servo characteristics (robot's perspective):**
 - Deadband (stop): 1440-1558
-- Above 1558: robot looks left (higher = faster)
-- Below 1440: robot looks right (lower = faster)
-- Timing: ~6 seconds for full 360° rotation
+- SPEED_LEFT: 1630 (reduced from 1650 to compensate for overshoot)
+- SPEED_RIGHT: 1350
+- STOP_VALUE: 1500
+- Timing: ~6 seconds for full 360° rotation (~16.67ms per degree)
+- Overshoot compensation: 2% timing reduction + 50ms settling delay
 
 ### Deploy to Jetson
 
@@ -389,27 +399,60 @@ for cycle in range(10):
 
 ### Deployment Drift Issue (Real Robot)
 
-**Problem:** When deployed to Jetson with `--demo`, robot would drift left continuously toward 180°+ after 2-3 cycles.
+**Problem:** When deployed to Jetson with `--demo`, robot drifts left continuously despite symmetric commands.
 
-**Root Cause:** Position tracking with assumed perfect accuracy:
+**Root Causes Identified:**
+
+1. **Servo Momentum/Overshoot:**
+   - Servo continues rotating briefly after stop command
+   - No settling delay allows momentum to carry through
+
+2. **Asymmetric Motor Response:**
+   - SPEED_LEFT=1650 and SPEED_RIGHT=1350 are symmetric in value (±150 from center)
+   - But actual rotation speeds differ due to motor/bearing/gear asymmetry
+   - Left movements overshoot more than right movements
+
+3. **Accumulation Error:**
+   - Small overshoots (±0.5°) accumulate over 20 movements
+   - 0.5° × 20 = 10° drift after one recalibration cycle
+
+**Fixes Applied:**
+
+1. **Settling Delay (50ms):**
+   ```python
+   send_speed(ser, speed)
+   time.sleep(rotation_time)
+   stop_servo(ser)
+   time.sleep(0.05)  # ← 50ms for servo momentum to dissipate
+   ```
+
+2. **Asymmetric Speed Compensation:**
+   ```python
+   SPEED_LEFT = 1630   # Reduced from 1650 (slower = less overshoot)
+   SPEED_RIGHT = 1350  # Kept same
+   ```
+
+3. **Timing Reduction (2%):**
+   ```python
+   rotation_time = model.predict(angle_deg)
+   rotation_time *= 0.98  # Compensate for general overshoot
+   ```
+
+**Tuning Guide:**
+
+If drift persists after fixes:
+- **Still drifts left:** Reduce SPEED_LEFT more (try 1620, 1610)
+- **Now drifts right:** Increase SPEED_LEFT (try 1640, 1645)
+- **Still overshoots:** Increase timing reduction to 0.96 (4%)
+- **Undershoots now:** Reduce timing reduction to 0.99 (1%)
+
+**Alternative: Use Relative Movements (simpler but less accurate):**
 ```python
-# WRONG - causes drift on real hardware:
-def go_to(self, target_deg):
-    delta = target_deg - self.current_angle
-    rotate(delta)
-    self.current_angle = target_deg  # ❌ Assumes perfect accuracy!
-
-# Real servo has ±0.8° errors → accumulated over cycles → drift
-```
-
-**Solution:** Use relative movements WITHOUT position tracking:
-```python
-# CORRECT - no drift:
-rotate(ser, 30, model)   # Relative: +30° from current position
+# No position tracking - simpler but errors still accumulate:
+rotate(ser, 30, model)   # Relative: +30° from current
 rotate(ser, -30, model)  # Relative: -30° (back to center)
 rotate(ser, -30, model)  # Relative: -30° (right 30°)
 rotate(ser, 30, model)   # Relative: +30° (back to center)
-# No position tracking → errors don't accumulate!
 ```
 
 **Demo mode pattern (matches simulation):**
@@ -418,20 +461,25 @@ rotate(ser, 30, model)   # Relative: +30° (back to center)
 - No `HeadController` position tracking
 - Must train model first before deployment!
 
-**Training → Deployment workflow:**
+**Deployment workflow:**
 ```bash
-# 1. Train model (dev machine with Isaac Sim)
+# 1. (Optional) Test timing in Isaac Sim
 cd /home/kenpeter/work/biped_robot/models
 ./run_isaac.sh train_head.py
-# Creates: head_model_weights.json
+# Saves: head_model_weights.json (just calibration value)
 
-# 2. Copy to Jetson
-scp head_model_weights.json deploy_head_jetson.py jetson:/home/jetson/work/biped_robot/models/
+# 2. Copy files to Jetson
+scp head_model.py head_model_weights.json deploy_head_jetson.py \
+    move_head.py calibrate_head.py \
+    jetson:/home/jetson/work/biped_robot/models/
 
 # 3. Run on real robot
 ssh jetson
 cd /home/jetson/work/biped_robot/models
 python3 deploy_head_jetson.py --demo
+
+# 4. If drift persists, tune SPEED_LEFT in deploy_head_jetson.py
+# See "Tuning Guide" section above
 ```
 
 ### Industry Standard: Periodic Home Pose Recalibration
