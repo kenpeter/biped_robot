@@ -1,7 +1,7 @@
 # Biped Robot
 
 ## Workflow
-1. **Train** in Isaac Sim using `models/humanoid.usda`
+1. **Train** using Isaac Sim (x86_64) or MuJoCo (Jetson/ARM)
 2. **Deploy** to Jetson using `deploy_head_jetson.py` (direct serial)
 
 ## Hardware
@@ -48,8 +48,11 @@ Position range: 500-2500 (0-180 degrees)
 
 ## Commands
 ```bash
-# Train (on dev machine with Isaac Sim)
-cd models && ./run_isaac.sh train_head.py
+# Train with MuJoCo (on Jetson/ARM)
+cd models && python3 train_head_mujoco.py --headless
+
+# Train with Isaac Sim (on x86_64 dev machine)
+cd models && ./run_isaac.sh train_head_isaac.py
 
 # Deploy (on Jetson)
 cd models && python3 deploy_head_jetson.py
