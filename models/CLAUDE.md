@@ -1,18 +1,71 @@
 # Biped Robot
 
 ## Workflow
-1. **Train** using Isaac Sim (x86_64) or MuJoCo (Jetson/ARM)
-2. **Deploy** to Jetson using `deploy_head_jetson.py` (direct serial)
+1. **Simulate** using MuJoCo (Jetson/ARM) or Isaac Sim (x86_64)
+2. **Calibrate** on real hardware with `--calibrate`
+3. **Deploy** to Jetson using `deploy_head_jetson.py`
 
 ## Hardware
 - Servo board: Hiwonder LSC-24 on /dev/ttyUSB1 @ 9600 baud
-- Head: channel 0 (with thermal camera mounted)
+- Head: channel 0 (continuous rotation servo with thermal camera)
 - Left body: channels 1-7
 - Right body: channels 12-19
 - Thermal camera: FLIR, mounted on head (servo 0), USB to Jetson
 
+## Training / Simulation
+
+### MuJoCo (runs on Jetson)
+```bash
+python3 train_head_mujoco.py           # with viewer (real-time)
+python3 train_head_mujoco.py --fast    # with viewer (fast)
+python3 train_head_mujoco.py --headless  # no viewer (fastest)
+```
+
+### Isaac Sim (requires x86_64 + NVIDIA GPU)
+```bash
+./run_isaac.sh train_head_isaac.py
+```
+
+**Note:** Simulation gives initial timing values. Real hardware calibration is required for accurate movement.
+
+## Calibration (Real Hardware)
+```bash
+# Calibrate timing on real robot (REQUIRED after simulation)
+python3 deploy_head_jetson.py --calibrate
+```
+- Runs ±30° test movements
+- Asks which way head drifted (l=left, r=right, c=centered)
+- Adjusts timing by 3% per iteration
+- Saves when centered
+
+## Deployment
+```bash
+# Interactive mode
+python3 deploy_head_jetson.py
+
+# Demo mode (oscillates ±30°)
+python3 deploy_head_jetson.py --demo
+```
+
+### Interactive Commands
+- `left 45` / `l 45` - rotate left 45°
+- `right 30` / `r 30` - rotate right 30°
+- `center` / `c` - return to center
+- `stop` / `s` - stop rotation
+- `go 60` - go to absolute angle 60°
+- `quit` / `q` - exit
+
+## Calibration File
+`head_model_weights.json`:
+```json
+{
+  "seconds_per_degree_left": 0.01767,
+  "seconds_per_degree_right": 0.01867
+}
+```
+
 ## Robot Model (15 Servos + Thermal Camera)
-USD file: `models/humanoid.usda`
+USD file: `humanoid.usda` | MuJoCo: `head_robot.xml`
 
 ```
 HEAD (1 servo + camera):
@@ -46,21 +99,17 @@ RIGHT LEG (4):
 Binary format: `[0x55, 0x55, 0x08, 0x03, 0x01, time_lo, time_hi, servo_id, pos_lo, pos_hi]`
 Position range: 500-2500 (0-180 degrees)
 
-## Commands
+## Quick Reference
 ```bash
-# Train with MuJoCo (on Jetson/ARM)
-cd models && python3 train_head_mujoco.py --headless
-
-# Train with Isaac Sim (on x86_64 dev machine)
-cd models && ./run_isaac.sh train_head_isaac.py
-
-# Deploy (on Jetson)
-cd models && python3 deploy_head_jetson.py
+# Full workflow
+python3 train_head_mujoco.py --headless  # 1. Simulate
+python3 deploy_head_jetson.py --calibrate  # 2. Calibrate on real hardware
+python3 deploy_head_jetson.py --demo       # 3. Test
 
 # Manual servo control
-python3 move_head.py left 90    # rotate left 90°
-python3 move_head.py right 45   # rotate right 45°
-python3 move_head.py stop       # stop rotation
+python3 move_head.py left 90
+python3 move_head.py right 45
+python3 move_head.py stop
 
 # Verify hardware
 python3 verify_hardware.py

@@ -1,0 +1,34 @@
+<mujoco model="head_robot">
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="RK4"/>
+
+  <asset>
+    <material name="base_mat" rgba="0.4 0.4 0.4 1"/>
+    <material name="head_mat" rgba="0.2 0.2 0.8 1"/>
+    <material name="camera_mat" rgba="0.05 0.05 0.05 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- Fixed base attached to world -->
+    <body name="base" pos="0 0 0.5">
+      <inertial pos="0 0 0" mass="100" diaginertia="1 1 1"/>
+      <geom name="base_geom" type="box" size="0.1 0.1 0.1" material="base_mat"/>
+
+      <!-- Head with revolute joint (Z-axis rotation) -->
+      <body name="head" pos="0 0 0.175">
+        <!-- Servo joint with damping -->
+        <joint name="head_joint" type="hinge" axis="0 0 1" damping="0.5" armature="0.02"/>
+        <inertial pos="0 0 0" mass="0.5" diaginertia="0.002 0.002 0.001"/>
+        <geom name="head_geom" type="box" size="0.075 0.075 0.075" material="head_mat"/>
+
+        <!-- Camera lens (off-center mass affects dynamics) -->
+        <geom name="camera_lens" type="cylinder" size="0.015 0.01" pos="0 0.085 0"
+              euler="90 0 0" material="camera_mat" mass="0.05"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <!-- Position-controlled servo with realistic response -->
+    <position name="head_motor" joint="head_joint" kp="100"/>
+  </actuator>
+</mujoco>
