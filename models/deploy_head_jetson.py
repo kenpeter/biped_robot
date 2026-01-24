@@ -15,7 +15,7 @@ MODEL_PATH = '/home/jetson/work/biped_robot/models/head_model_weights.json'
 DEADBAND_LOW = 1440
 DEADBAND_HIGH = 1558
 STOP_VALUE = 1500
-SPEED_LEFT = 1630   # robot looks left (reduced to compensate for overshoot)
+SPEED_LEFT = 1630   # robot looks left (asymmetry handled by model timing)
 SPEED_RIGHT = 1350  # robot looks right
 
 from head_model import HeadServoModel
@@ -120,6 +120,99 @@ class HeadController:
         stop_servo(self.ser)
 
 
+def calibrate_asymmetry(ser, model):
+    """Calibrate left/right timing asymmetry on real hardware."""
+    print("\n" + "="*50)
+    print("ASYMMETRY CALIBRATION")
+    print("="*50)
+    print("\nThis will run test movements and adjust timing to fix drift.\n")
+
+    input("1. Manually center the head (forward facing), then press Enter...")
+    print("[OK] Starting from center\n")
+
+    # Run calibration cycles
+    CYCLES = 3
+    ANGLE = 30
+
+    for attempt in range(5):  # Max 5 adjustment attempts
+        print(f"--- Calibration run {attempt + 1} ---")
+        print(f"Running {CYCLES} cycles of ±{ANGLE}° movements...\n")
+
+        for cycle in range(CYCLES):
+            # Left
+            rotation_time = model.predict(ANGLE)
+            send_speed(ser, SPEED_LEFT)
+            time.sleep(abs(rotation_time) * 0.98)
+            stop_servo(ser)
+            time.sleep(0.05)
+
+            time.sleep(0.5)
+
+            # Right (back to center)
+            rotation_time = model.predict(-ANGLE)
+            send_speed(ser, SPEED_RIGHT)
+            time.sleep(abs(rotation_time) * 0.98)
+            stop_servo(ser)
+            time.sleep(0.05)
+
+            time.sleep(0.5)
+
+            # Right
+            rotation_time = model.predict(-ANGLE)
+            send_speed(ser, SPEED_RIGHT)
+            time.sleep(abs(rotation_time) * 0.98)
+            stop_servo(ser)
+            time.sleep(0.05)
+
+            time.sleep(0.5)
+
+            # Left (back to center)
+            rotation_time = model.predict(ANGLE)
+            send_speed(ser, SPEED_LEFT)
+            time.sleep(abs(rotation_time) * 0.98)
+            stop_servo(ser)
+            time.sleep(0.05)
+
+            time.sleep(0.5)
+
+        print(f"\nCurrent timing:")
+        print(f"  Left:  {model.seconds_per_degree_left*1000:.3f} ms/deg")
+        print(f"  Right: {model.seconds_per_degree_right*1000:.3f} ms/deg")
+
+        print("\nWhich way did the head drift?")
+        print("  l = drifted LEFT (left movements too long)")
+        print("  r = drifted RIGHT (right movements too long)")
+        print("  c = centered (calibration done!)")
+        print("  q = quit without saving")
+
+        response = input("\nDrift direction [l/r/c/q]: ").strip().lower()
+
+        if response == 'c':
+            model.save(MODEL_PATH)
+            print(f"\n[OK] Calibration saved to {MODEL_PATH}")
+            return True
+        elif response == 'l':
+            # Drifted left = left movements go too far, reduce left timing
+            model.seconds_per_degree_left *= 0.97
+            print(f"[ADJ] Reduced left timing by 3%")
+            input("\nManually re-center the head, then press Enter...")
+        elif response == 'r':
+            # Drifted right = right movements go too far, reduce right timing
+            model.seconds_per_degree_right *= 0.97
+            print(f"[ADJ] Reduced right timing by 3%")
+            input("\nManually re-center the head, then press Enter...")
+        elif response == 'q':
+            print("[CANCELLED] Calibration not saved")
+            return False
+        else:
+            print("Unknown response, trying again...")
+            input("\nManually re-center the head, then press Enter...")
+
+    print("\n[WARN] Max attempts reached. Saving current values...")
+    model.save(MODEL_PATH)
+    return True
+
+
 def main():
     print("="*50)
     print("CONTINUOUS ROTATION HEAD SERVO DEPLOYMENT")
@@ -138,7 +231,13 @@ def main():
     except FileNotFoundError:
         print("[WARN] No trained model found, using default timing")
 
-    print(f"\nTiming: {model.seconds_per_degree*1000:.2f}ms per degree")
+    print(f"\nTiming - Left: {model.seconds_per_degree_left*1000:.2f}ms/deg, Right: {model.seconds_per_degree_right*1000:.2f}ms/deg")
+
+    # Calibration mode
+    if len(sys.argv) > 1 and sys.argv[1] == '--calibrate':
+        calibrate_asymmetry(ser, model)
+        ser.close()
+        return
 
     head = HeadController(ser, model)
 

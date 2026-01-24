@@ -1,5 +1,5 @@
 """Test head servo in Isaac Sim to verify timing calibration.
-Measures actual rotation speed and saves calibration.
+Measures actual rotation speed for LEFT and RIGHT separately to capture asymmetry.
 """
 from isaacsim import SimulationApp
 simulation_app = SimulationApp({"headless": False})
@@ -28,40 +28,31 @@ SECONDS_PER_DEGREE = SECONDS_PER_360 / 360.0
 SIM_DT = 1.0 / 60.0  # Isaac Sim timestep
 
 print("\n" + "="*50)
-print("HEAD SERVO TIMING TEST")
+print("HEAD SERVO TIMING TEST (Asymmetric)")
 print("="*50)
 print(f"Default: {SECONDS_PER_360}s per 360° ({SECONDS_PER_DEGREE*1000:.2f}ms per degree)")
 
 
 def rotate_by_time(current_deg, target_deg):
-    """EXACT COPY from test_head_speed.py move_to_angle() - working version!
-
-    Returns (actual_deg, time_used, angle_error).
-    """
-    # COPIED DIRECTLY FROM test_head_speed.py
+    """Rotate and measure actual result. Returns (actual_deg, time_used, angle_error)."""
     delta_deg = target_deg - current_deg
     if abs(delta_deg) < 0.5:
         return current_deg, 0.0, 0.0
 
-    # Calculate time and velocity
-    VELOCITY_DEG_PER_SEC = 60.0  # 360 / 6
+    VELOCITY_DEG_PER_SEC = 60.0
     time_needed = abs(delta_deg) / VELOCITY_DEG_PER_SEC
     velocity_rad = np.radians(VELOCITY_DEG_PER_SEC) * np.sign(delta_deg)
 
-    # Move until we reach target or timeout
-    max_steps = int((time_needed + 0.5) / SIM_DT)  # Add buffer time
+    max_steps = int((time_needed + 0.5) / SIM_DT)
     for i in range(max_steps):
         current_rad = robot.get_joint_positions()[0]
         current_deg_now = np.degrees(current_rad)
         error_deg = target_deg - current_deg_now
 
-        # Stop when within 1 degree of target (same as test_head_speed.py)
         if abs(error_deg) < 1.0:
             break
 
-        # Reduce velocity as we approach target (deceleration)
         if abs(error_deg) < 5.0:
-            # Slow down in last 5 degrees (same as test_head_speed.py)
             scale = abs(error_deg) / 5.0
             current_velocity = velocity_rad * max(scale, 0.2)
         else:
@@ -73,29 +64,24 @@ def rotate_by_time(current_deg, target_deg):
         )
         world.step(render=True)
 
-    # Stop completely
     robot._articulation_view.set_joint_velocity_targets(
         velocities=np.array([0.0]),
         joint_indices=np.array([0])
     )
-    # Same as test_head_speed.py
     for _ in range(20):
         world.step(render=True)
 
-    # Measure result
     actual_deg = np.degrees(robot.get_joint_positions()[0])
     angle_error = actual_deg - target_deg
-    time_used = time_needed
-
-    return actual_deg, time_used, angle_error
+    return actual_deg, time_needed, angle_error
 
 
-print("\nTesting ±30° movements...")
+print("\nTesting ±30° movements (tracking left/right separately)...")
 print("Sequence: left 30° → center → right 30° → center\n")
 
 current_pos = 0.0
-total_error = 0.0
-count = 0
+left_errors = []
+right_errors = []
 
 # Test 5 cycles
 for cycle_num in range(5):
@@ -105,24 +91,43 @@ for cycle_num in range(5):
         actual_deg, time_used, angle_error = rotate_by_time(current_pos, target_deg)
 
         delta = target_deg - current_pos
-        total_error += abs(angle_error)
-        count += 1
+
+        # Track errors by direction
+        if delta > 0:
+            left_errors.append(angle_error)
+        elif delta < 0:
+            right_errors.append(angle_error)
 
         print(f"  {current_pos:+6.1f}° → {target_deg:+6.1f}° (Δ{delta:+6.1f}°): "
               f"actual={actual_deg:+6.1f}°, error={angle_error:+5.2f}°")
 
         current_pos = actual_deg
 
-        # Pause
         for _ in range(30):
             world.step(render=True)
 
-avg_error = total_error / count
-print(f"\nAverage error: {avg_error:.2f}°")
+# Calculate asymmetric timing adjustments
+avg_left_error = np.mean(left_errors) if left_errors else 0.0
+avg_right_error = np.mean(right_errors) if right_errors else 0.0
 
-print("\nSaving calibration...")
+print(f"\n--- Results ---")
+print(f"Left movements:  avg error = {avg_left_error:+.2f}°")
+print(f"Right movements: avg error = {avg_right_error:+.2f}°")
+
+# Adjust timing based on errors
+# If we overshoot (positive error), we need less time (reduce timing)
+# If we undershoot (negative error), we need more time (increase timing)
+left_adjustment = 1.0 - (avg_left_error / 30.0)  # error per 30° movement
+right_adjustment = 1.0 - (avg_right_error / 30.0)
+
 model = HeadServoModel()
-model.seconds_per_degree = SECONDS_PER_DEGREE
+model.seconds_per_degree_left = SECONDS_PER_DEGREE * left_adjustment
+model.seconds_per_degree_right = SECONDS_PER_DEGREE * right_adjustment
+
+print(f"\nCalibrated timing:")
+print(f"  Left:  {model.seconds_per_degree_left*1000:.3f}ms per degree (adj: {left_adjustment:.3f})")
+print(f"  Right: {model.seconds_per_degree_right*1000:.3f}ms per degree (adj: {right_adjustment:.3f})")
+
 model.save("head_model_weights.json")
 
 simulation_app.close()

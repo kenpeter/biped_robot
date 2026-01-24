@@ -135,11 +135,16 @@ python3 move_head.py off          # release servo (torque off)
 
 **Continuous rotation servo characteristics (robot's perspective):**
 - Deadband (stop): 1440-1558
-- SPEED_LEFT: 1630 (reduced from 1650 to compensate for overshoot)
+- SPEED_LEFT: 1630
 - SPEED_RIGHT: 1350
 - STOP_VALUE: 1500
-- Timing: ~6 seconds for full 360° rotation (~16.67ms per degree)
+- Timing: ~6 seconds for full 360° rotation (~16.67ms per degree default)
 - Overshoot compensation: 2% timing reduction + 50ms settling delay
+
+**Calibrated asymmetric timing (Jan 2026):**
+- Left:  15.682 ms/deg
+- Right: 15.682 ms/deg
+- Calibrated using `deploy_head_jetson.py --calibrate`
 
 ### Deploy to Jetson
 
