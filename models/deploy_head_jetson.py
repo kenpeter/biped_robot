@@ -15,7 +15,7 @@ MODEL_PATH = '/home/jetson/work/biped_robot/models/head_model_weights.json'
 DEADBAND_LOW = 1440
 DEADBAND_HIGH = 1558
 STOP_VALUE = 1500
-SPEED_LEFT = 1650   # robot looks left
+SPEED_LEFT = 1630   # robot looks left (reduced to compensate for overshoot)
 SPEED_RIGHT = 1350  # robot looks right
 
 from head_model import HeadServoModel
@@ -48,6 +48,9 @@ def rotate(ser, angle_deg, model):
     # Get rotation time from model
     rotation_time = model.predict(angle_deg)
 
+    # Reduce by 2% to compensate for overshoot
+    rotation_time *= 0.98
+
     # Direction based on sign
     if rotation_time > 0:
         speed = SPEED_LEFT
@@ -59,6 +62,7 @@ def rotate(ser, angle_deg, model):
     send_speed(ser, speed)
     time.sleep(rotation_time)
     stop_servo(ser)
+    time.sleep(0.05)  # 50ms settling time for servo momentum
 
 
 class HeadController:

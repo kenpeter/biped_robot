@@ -22,7 +22,7 @@ CALIB_FILE = '/home/jetson/work/biped_robot/models/head_calibration.json'
 
 # Servo parameters
 STOP_VALUE = 1500
-SPEED_LEFT = 1650
+SPEED_LEFT = 1630  # reduced to compensate for overshoot
 SPEED_RIGHT = 1350
 SECONDS_PER_DEGREE = 6.0 / 360.0
 

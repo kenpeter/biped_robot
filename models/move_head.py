@@ -25,7 +25,7 @@ DEADBAND_HIGH = 1558  # above this = rotate right
 STOP_VALUE = 1500     # center of deadband
 
 # Speed settings (robot's perspective)
-SPEED_LEFT = 1650     # rotate left (robot looks to its left)
+SPEED_LEFT = 1630     # rotate left (reduced to compensate for overshoot)
 SPEED_RIGHT = 1350    # rotate right (robot looks to its right)
 
 # Timing: 6 seconds for 360° at speed 1600/1400
