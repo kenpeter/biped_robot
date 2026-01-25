@@ -1,0 +1,90 @@
+<mujoco model="biped_legs">
+  <compiler angle="degree" coordinate="local"/>
+
+  <option timestep="0.002" gravity="0 0 -9.81"/>
+
+  <default>
+    <joint damping="0.5" armature="0.01"/>
+    <geom contype="1" conaffinity="1" friction="1 0.5 0.5"/>
+    <motor ctrllimited="true" ctrlrange="-1 1"/>
+  </default>
+
+  <worldbody>
+    <!-- Ground plane -->
+    <geom name="floor" type="plane" size="10 10 0.1" rgba="0.8 0.8 0.8 1"/>
+
+    <!-- Torso (pelvis) - floating base -->
+    <body name="torso" pos="0 0 0.6">
+      <freejoint name="root"/>
+      <geom name="pelvis" type="box" size="0.15 0.1 0.05" rgba="0.3 0.3 0.8 1" mass="5"/>
+      <site name="torso_site" pos="0 0 0"/>
+
+      <!-- RIGHT LEG -->
+      <body name="right_hip" pos="0.08 0 -0.05">
+        <!-- Servo 4: Hip roll (out/in) -->
+        <joint name="right_hip_roll" type="hinge" axis="1 0 0" range="-30 30"/>
+        <geom name="right_hip_geom" type="sphere" size="0.03" rgba="0.5 0.5 0.5 1"/>
+
+        <body name="right_thigh" pos="0 0 0">
+          <!-- Servo 5: Hip pitch (fwd/back) -->
+          <joint name="right_hip_pitch" type="hinge" axis="0 1 0" range="-60 60"/>
+          <geom name="right_thigh_geom" type="capsule" fromto="0 0 0 0 0 -0.2" size="0.04" rgba="0.6 0.3 0.3 1" mass="1.5"/>
+
+          <body name="right_shin" pos="0 0 -0.2">
+            <!-- Servo 6: Knee (fwd/back) -->
+            <joint name="right_knee" type="hinge" axis="0 1 0" range="-5 120"/>
+            <geom name="right_shin_geom" type="capsule" fromto="0 0 0 0 0 -0.2" size="0.035" rgba="0.6 0.3 0.3 1" mass="1"/>
+
+            <body name="right_foot" pos="0 0 -0.2">
+              <!-- Servo 7: Ankle roll (out/in) -->
+              <joint name="right_ankle_roll" type="hinge" axis="1 0 0" range="-30 30"/>
+              <geom name="right_foot_geom" type="box" size="0.08 0.04 0.02" pos="0.02 0 -0.02" rgba="0.4 0.4 0.4 1" mass="0.5"/>
+              <site name="right_foot_site" pos="0 0 -0.02"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- LEFT LEG -->
+      <body name="left_hip" pos="-0.08 0 -0.05">
+        <!-- Servo 15: Hip roll (out/in) -->
+        <joint name="left_hip_roll" type="hinge" axis="1 0 0" range="-30 30"/>
+        <geom name="left_hip_geom" type="sphere" size="0.03" rgba="0.5 0.5 0.5 1"/>
+
+        <body name="left_thigh" pos="0 0 0">
+          <!-- Servo 16: Hip pitch (fwd/back) -->
+          <joint name="left_hip_pitch" type="hinge" axis="0 1 0" range="-60 60"/>
+          <geom name="left_thigh_geom" type="capsule" fromto="0 0 0 0 0 -0.2" size="0.04" rgba="0.3 0.6 0.3 1" mass="1.5"/>
+
+          <body name="left_shin" pos="0 0 -0.2">
+            <!-- Servo 17: Knee (fwd/back) -->
+            <joint name="left_knee" type="hinge" axis="0 1 0" range="-5 120"/>
+            <geom name="left_shin_geom" type="capsule" fromto="0 0 0 0 0 -0.2" size="0.035" rgba="0.3 0.6 0.3 1" mass="1"/>
+
+            <body name="left_foot" pos="0 0 -0.2">
+              <!-- Servo 18: Ankle roll (out/in) -->
+              <joint name="left_ankle_roll" type="hinge" axis="1 0 0" range="-30 30"/>
+              <geom name="left_foot_geom" type="box" size="0.08 0.04 0.02" pos="0.02 0 -0.02" rgba="0.4 0.4 0.4 1" mass="0.5"/>
+              <site name="left_foot_site" pos="0 0 -0.02"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <!-- Right leg actuators (servos 4, 5, 6, 7) -->
+    <motor name="right_hip_roll_motor" joint="right_hip_roll" gear="50"/>
+    <motor name="right_hip_pitch_motor" joint="right_hip_pitch" gear="50"/>
+    <motor name="right_knee_motor" joint="right_knee" gear="50"/>
+    <motor name="right_ankle_roll_motor" joint="right_ankle_roll" gear="30"/>
+
+    <!-- Left leg actuators (servos 15, 16, 17, 18) -->
+    <motor name="left_hip_roll_motor" joint="left_hip_roll" gear="50"/>
+    <motor name="left_hip_pitch_motor" joint="left_hip_pitch" gear="50"/>
+    <motor name="left_knee_motor" joint="left_knee" gear="50"/>
+    <motor name="left_ankle_roll_motor" joint="left_ankle_roll" gear="30"/>
+  </actuator>
+
+</mujoco>

@@ -1,0 +1,53 @@
+{
+  "gait_cycle": [
+    {
+      "joint": "right_hip_roll",
+      "min_angle": -39.793516208543075,
+      "max_angle": 37.525083525717505,
+      "mean_angle": -4.628222512047223
+    },
+    {
+      "joint": "right_hip_pitch",
+      "min_angle": -66.98788122190473,
+      "max_angle": 8.787895061749259,
+      "mean_angle": -34.13691870598553
+    },
+    {
+      "joint": "right_knee",
+      "min_angle": 11.45135183221397,
+      "max_angle": 137.15795379888806,
+      "mean_angle": 93.73396415265533
+    },
+    {
+      "joint": "right_ankle_roll",
+      "min_angle": -50.147888288936926,
+      "max_angle": 51.7822325138442,
+      "mean_angle": -0.21814007264184798
+    },
+    {
+      "joint": "left_hip_roll",
+      "min_angle": -39.98596155858598,
+      "max_angle": 40.74392357762377,
+      "mean_angle": -2.0341879515450265
+    },
+    {
+      "joint": "left_hip_pitch",
+      "min_angle": -6.155335097305581,
+      "max_angle": 74.99776456521286,
+      "mean_angle": 35.13104712258162
+    },
+    {
+      "joint": "left_knee",
+      "min_angle": -32.31660620217651,
+      "max_angle": 135.24839948469454,
+      "mean_angle": 30.585418504656
+    },
+    {
+      "joint": "left_ankle_roll",
+      "min_angle": -50.822254266095065,
+      "max_angle": 52.843743439012385,
+      "mean_angle": 2.913255515483492
+    }
+  ],
+  "description": "Timing for one complete walking cycle"
+}
