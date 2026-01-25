@@ -1,116 +1,133 @@
 # Biped Robot
 
-## Workflow
-1. **Simulate** using MuJoCo (Jetson/ARM) or Isaac Sim (x86_64)
-2. **Calibrate** on real hardware with `--calibrate`
-3. **Deploy** to Jetson using `deploy_head_jetson.py`
+## IMPORTANT: All Servos are Continuous Rotation
+All servos use **continuous rotation** (speed + timing), NOT position control.
+- Send speed value (1500=stop, >1500=one direction, <1500=other direction)
+- Control rotation time to achieve desired angle
+- Requires calibration on real hardware
 
 ## Hardware
 - Servo board: Hiwonder LSC-24 on /dev/ttyUSB1 @ 9600 baud
-- Head: channel 0 (continuous rotation servo with thermal camera)
-- Left body: channels 1-7
-- Right body: channels 12-19
-- Thermal camera: FLIR, mounted on head (servo 0), USB to Jetson
+- All servos: Continuous rotation (6 sec for 360°)
+- Thermal camera: FLIR, mounted on head, USB to Jetson
 
-## Training / Simulation
+## Servo Channels
+```
+HEAD (channel 0):
+  Servo 0: left/right rotation
 
-### MuJoCo (runs on Jetson)
-```bash
-python3 train_head_mujoco.py           # with viewer (real-time)
-python3 train_head_mujoco.py --fast    # with viewer (fast)
-python3 train_head_mujoco.py --headless  # no viewer (fastest)
+LEFT ARM (channels 12, 13, 14):
+  Servo 12: shoulder (forward/backward)
+  Servo 13: upper arm (inward/outward)
+  Servo 14: forearm (inward/outward)
 ```
 
-### Isaac Sim (requires x86_64 + NVIDIA GPU)
-```bash
-./run_isaac.sh train_head_isaac.py
+## Files
+```
+HEAD:
+  head_model.py           - timing model
+  head_robot.xml          - MuJoCo model
+  train_head_mujoco.py    - simulation training
+  train_head_isaac.py     - Isaac Sim training
+  deploy_head_jetson.py   - deploy + calibrate
+  head_model_weights.json - calibration data
+
+LEFT ARM:
+  left_arm_model.py           - timing model
+  left_arm_robot.xml          - MuJoCo model
+  train_left_arm_mujoco.py    - simulation training
+  deploy_left_arm_jetson.py   - deploy + calibrate
+  left_arm_model_weights.json - calibration data
+
+OTHER:
+  verify_hardware.py      - check servo connection
 ```
 
-**Note:** Simulation gives initial timing values. Real hardware calibration is required for accurate movement.
+## Workflow
+1. **Simulate** (optional): Get initial timing
+2. **Calibrate** (required): Adjust timing on real hardware
+3. **Deploy**: Use calibrated model
 
-## Calibration (Real Hardware)
+## Head Servo (Channel 0)
+
+### Calibrate
 ```bash
-# Calibrate timing on real robot (REQUIRED after simulation)
 python3 deploy_head_jetson.py --calibrate
 ```
-- Runs ±30° test movements
-- Asks which way head drifted (l=left, r=right, c=centered)
-- Adjusts timing by 3% per iteration
-- Saves when centered
+- Manually center head, press Enter
+- Runs ±30° test cycles
+- Answer: l=drifted left, r=drifted right, c=centered
 
-## Deployment
+### Use
 ```bash
-# Interactive mode
-python3 deploy_head_jetson.py
+python3 deploy_head_jetson.py          # interactive
+python3 deploy_head_jetson.py --demo   # demo
+```
+Commands: `left 45`, `right 30`, `center`, `stop`, `quit`
 
-# Demo mode (oscillates ±30°)
-python3 deploy_head_jetson.py --demo
+## Left Arm Servos (Channels 12, 13, 14)
+
+### Calibrate
+```bash
+python3 deploy_left_arm_jetson.py --calibrate      # all servos
+python3 deploy_left_arm_jetson.py --calibrate 12   # servo 12 only
+python3 deploy_left_arm_jetson.py --calibrate 13   # servo 13 only
+python3 deploy_left_arm_jetson.py --calibrate 14   # servo 14 only
+```
+- Manually center servo, press Enter
+- Runs ±30° test cycles (FWD/BACK or OUT/IN)
+- Answer: f=drifted forward/out, b=drifted back/in, c=centered
+
+### Use
+```bash
+python3 deploy_left_arm_jetson.py          # interactive
+python3 deploy_left_arm_jetson.py --demo   # demo
+```
+Commands:
+- `12 fwd 30` / `12 back 30` - shoulder
+- `13 out 30` / `13 in 30` - upper arm
+- `14 out 30` / `14 in 30` - forearm
+- `stop`, `quit`
+
+## MuJoCo Simulation
+```bash
+python3 train_head_mujoco.py --headless
+python3 train_left_arm_mujoco.py --headless
 ```
 
-### Interactive Commands
-- `left 45` / `l 45` - rotate left 45°
-- `right 30` / `r 30` - rotate right 30°
-- `center` / `c` - return to center
-- `stop` / `s` - stop rotation
-- `go 60` - go to absolute angle 60°
-- `quit` / `q` - exit
+## Hiwonder Protocol (Continuous Rotation)
+```
+Command: [0x55, 0x55, 0x08, 0x03, 0x01, 0, 0, servo_id, speed_lo, speed_hi]
 
-## Calibration File
-`head_model_weights.json`:
+Speed: 1500 = stop
+Timing: ~6 seconds for 360° = 16.67ms per degree
+```
+
+## Servo Speed Values (IMPORTANT)
+Each servo may have different direction mapping!
+
+```
+HEAD (servo 0):
+  1630 = left
+  1350 = right
+
+LEFT ARM:
+  Servo 12 (shoulder): 1350 = forward, 1630 = backward  (REVERSED!)
+  Servo 13 (upper arm): 1630 = out, 1350 = in  (TBD - needs calibration)
+  Servo 14 (forearm):   1630 = out, 1350 = in  (TBD - needs calibration)
+```
+
+## Calibrated Timing Values
+
+`left_arm_model_weights.json` (after calibration):
 ```json
 {
-  "seconds_per_degree_left": 0.01767,
-  "seconds_per_degree_right": 0.01867
+  "servo_12": {"spd_pos": 0.01431, "spd_neg": 0.01504},
+  "servo_13": {"spd_pos": 0.01667, "spd_neg": 0.01667},
+  "servo_14": {"spd_pos": 0.01667, "spd_neg": 0.01667}
 }
 ```
 
-## Robot Model (15 Servos + Thermal Camera)
-USD file: `humanoid.usda` | MuJoCo: `head_robot.xml`
-
-```
-HEAD (1 servo + camera):
-  head_joint            → left/right (Z)
-  thermal_camera        → FLIR (USB to Jetson)
-
-LEFT ARM (3):
-  l_shoulder_pitch      → forward/backward (Y)
-  l_shoulder_roll       → close/away body (X)
-  l_forearm_roll        → close/away body (X)
-
-RIGHT ARM (3):
-  r_shoulder_pitch      → forward/backward (Y)
-  r_shoulder_roll       → close/away body (X)
-  r_forearm_roll        → close/away body (X)
-
-LEFT LEG (4):
-  l_hip_roll            → close/away body (X)
-  l_knee_pitch          → forward/backward (Y)
-  l_ankle_pitch         → forward/backward (Y)
-  l_foot_roll           → close/away body (X)
-
-RIGHT LEG (4):
-  r_hip_roll            → close/away body (X)
-  r_knee_pitch          → forward/backward (Y)
-  r_ankle_pitch         → forward/backward (Y)
-  r_foot_roll           → close/away body (X)
-```
-
-## Hiwonder Protocol
-Binary format: `[0x55, 0x55, 0x08, 0x03, 0x01, time_lo, time_hi, servo_id, pos_lo, pos_hi]`
-Position range: 500-2500 (0-180 degrees)
-
-## Quick Reference
-```bash
-# Full workflow
-python3 train_head_mujoco.py --headless  # 1. Simulate
-python3 deploy_head_jetson.py --calibrate  # 2. Calibrate on real hardware
-python3 deploy_head_jetson.py --demo       # 3. Test
-
-# Manual servo control
-python3 move_head.py left 90
-python3 move_head.py right 45
-python3 move_head.py stop
-
-# Verify hardware
-python3 verify_hardware.py
-```
+Servo 12 calibrated:
+- Forward: 14.31 ms/deg
+- Backward: 15.04 ms/deg
