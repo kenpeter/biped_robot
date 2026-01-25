@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Deploy right arm servos to Jetson - continuous rotation servos.
+"""Deploy left leg servos to Jetson - continuous rotation servos.
 
 All servos are continuous rotation (like head).
 Uses timed rotation with speed commands.
 
 Usage:
-  python3 deploy_right_arm_jetson.py              # interactive mode
-  python3 deploy_right_arm_jetson.py --calibrate  # calibrate all
-  python3 deploy_right_arm_jetson.py --calibrate 1  # calibrate servo 1
-  python3 deploy_right_arm_jetson.py --demo       # demo movements
+  python3 deploy_left_leg_jetson.py              # interactive mode
+  python3 deploy_left_leg_jetson.py --calibrate  # calibrate all
+  python3 deploy_left_leg_jetson.py --calibrate 15  # calibrate servo 15
+  python3 deploy_left_leg_jetson.py --demo       # demo movements
 """
 import serial
 import time
@@ -16,31 +16,36 @@ import sys
 
 SERIAL_PORT = '/dev/ttyUSB1'
 BAUD_RATE = 9600
-MODEL_PATH = '/home/jetson/work/biped_robot/models/right_arm_model_weights.json'
+MODEL_PATH = '/home/jetson/work/biped_robot/models/left_leg_model_weights.json'
 
 # Servo channels
-SERVO_1 = 1  # shoulder (fwd/back)
-SERVO_2 = 2  # upper arm (in/out)
-SERVO_3 = 3  # forearm (in/out)
+SERVO_15 = 15  # hip roll (out/in)
+SERVO_16 = 16  # hip pitch (fwd/back)
+SERVO_17 = 17  # knee (fwd/back)
+SERVO_18 = 18  # ankle roll (out/in)
 
 SERVO_NAMES = {
-    1: "shoulder (fwd/back)",
-    2: "upper_arm (in/out)",
-    3: "forearm (in/out)",
+    15: "hip_roll (out/in)",
+    16: "hip_pitch (fwd/back)",
+    17: "knee (fwd/back)",
+    18: "ankle_roll (out/in)",
 }
 
 # Continuous rotation: 1500 = stop, >1500 = one way, <1500 = other way
 STOP_VALUE = 1500
 
-# Speed values for each servo (adjust if needed)
-# Format: (forward/out speed, backward/in speed)
+# Speed values for each servo (matching right leg pattern)
+# Format: (positive_speed, negative_speed)
+# Servo 15, 18: (out, in)
+# Servo 16, 17: (fwd, back)
 SERVO_SPEEDS = {
-    1: (1580, 1420),  # shoulder: fwd, back (SWAPPED - now 1580=fwd, 1420=back)
-    2: (1350, 1580),  # upper arm: out (fast to overcome friction), in (gentle)
-    3: (1630, 1350),  # forearm: out, in (swapped)
+    15: (1630, 1350),  # hip roll: out, in (swapped)
+    16: (1350, 1630),  # hip pitch: fwd, back (swapped)
+    17: (1630, 1350),  # knee: fwd, back (swapped)
+    18: (1350, 1630),  # ankle roll: out, in (swapped)
 }
 
-from right_arm_model import ArmServoModel
+from left_leg_model import LegServoModel
 
 
 def send_speed(ser, servo_id, speed):
@@ -58,7 +63,7 @@ def stop_servo(ser, servo_id):
 
 def stop_all(ser):
     """Stop all servos."""
-    for sid in [1, 2, 3]:
+    for sid in [15, 16, 17, 18]:
         stop_servo(ser, sid)
 
 
@@ -66,7 +71,7 @@ def rotate(ser, servo_id, angle_deg, model):
     """Rotate servo by degrees using timed rotation.
 
     Args:
-        servo_id: 1, 2, or 3
+        servo_id: 15, 16, 17, or 18
         angle_deg: Degrees to rotate (positive=fwd/out, negative=back/in)
         model: Trained model for timing
     """
@@ -96,13 +101,13 @@ def rotate(ser, servo_id, angle_deg, model):
     time.sleep(0.05)
 
 
-class ArmController:
-    """Control right arm servos."""
+class LegController:
+    """Control left leg servos."""
 
     def __init__(self, ser, model):
         self.ser = ser
         self.model = model
-        self.angles = {1: 0.0, 2: 0.0, 3: 0.0}
+        self.angles = {15: 0.0, 16: 0.0, 17: 0.0, 18: 0.0}
 
     def rotate_by(self, servo_id, delta_deg):
         """Rotate servo by relative amount."""
@@ -121,7 +126,7 @@ class ArmController:
 
     def center_all(self):
         """Center all servos."""
-        for sid in [1, 2, 3]:
+        for sid in [15, 16, 17, 18]:
             self.center(sid)
 
     def stop(self, servo_id):
@@ -142,23 +147,21 @@ def calibrate_servo(ser, model, servo_id):
     print("[OK] Starting from center\n")
 
     CYCLES = 3
-    # Servo 2 and 3 have limited inward range - use asymmetric angles
-    if servo_id in [2, 3]:
-        POS_ANGLE = 30  # OUT - more space
-        NEG_ANGLE = 5   # IN - very limited space
-    elif servo_id == 1:
-        POS_ANGLE = 30  # FWD - 30 degrees
-        NEG_ANGLE = 30  # BACK - 30 degrees
-    else:
-        POS_ANGLE = 30
-        NEG_ANGLE = 30
-    fwd_speed, back_speed = SERVO_SPEEDS[servo_id]
-
-    # Direction names
-    if servo_id == 1:
-        pos_name, neg_name = "FWD", "BACK"
-    else:
+    # Determine movement type based on servo
+    if servo_id == 15:  # hip roll - limited range
+        POS_ANGLE = 15  # OUT
+        NEG_ANGLE = 5   # IN
         pos_name, neg_name = "OUT", "IN"
+    elif servo_id == 18:  # ankle roll
+        POS_ANGLE = 30  # OUT
+        NEG_ANGLE = 30  # IN
+        pos_name, neg_name = "OUT", "IN"
+    else:  # fwd/back servos (16, 17)
+        POS_ANGLE = 30  # FWD
+        NEG_ANGLE = 30  # BACK
+        pos_name, neg_name = "FWD", "BACK"
+
+    fwd_speed, back_speed = SERVO_SPEEDS[servo_id]
 
     for attempt in range(10):
         print(f"--- Calibration run {attempt + 1} ---")
@@ -253,10 +256,10 @@ def calibrate_servo(ser, model, servo_id):
 def calibrate(ser, model, servos=None):
     """Calibrate servos."""
     if servos is None:
-        servos = [1, 2, 3]
+        servos = [15, 16, 17, 18]
 
     print("\n" + "="*50)
-    print("RIGHT ARM CALIBRATION (Continuous Rotation)")
+    print("LEFT LEG CALIBRATION (Continuous Rotation)")
     print("="*50)
     print(f"\nCalibrating servo(s): {servos}")
     print("(Ctrl+C to save and exit)\n")
@@ -280,7 +283,7 @@ def calibrate(ser, model, servos=None):
 
 def main():
     print("="*50)
-    print("RIGHT ARM SERVOS (Continuous Rotation)")
+    print("LEFT LEG SERVOS (Continuous Rotation)")
     print("="*50)
 
     print(f"\nConnecting to {SERIAL_PORT}...")
@@ -289,7 +292,7 @@ def main():
     print("[OK] Connected")
 
     print(f"\nLoading model from {MODEL_PATH}...")
-    model = ArmServoModel()
+    model = LegServoModel()
     try:
         model.load(MODEL_PATH)
         print("[OK] Model loaded")
@@ -297,7 +300,7 @@ def main():
         print("[WARN] No model found, using defaults")
 
     print("\nServo timing:")
-    for sid in [1, 2, 3]:
+    for sid in [15, 16, 17, 18]:
         pos, neg = model.get_speeds(sid)
         print(f"  Servo {sid}: +{pos*1000:.2f}ms/deg, -{neg*1000:.2f}ms/deg")
 
@@ -305,7 +308,7 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == '--calibrate':
         if len(sys.argv) > 2:
             servo_id = int(sys.argv[2])
-            if servo_id in [1, 2, 3]:
+            if servo_id in [15, 16, 17, 18]:
                 calibrate(ser, model, [servo_id])
             else:
                 print(f"[ERROR] Invalid servo: {servo_id}")
@@ -314,13 +317,14 @@ def main():
         ser.close()
         return
 
-    arm = ArmController(ser, model)
+    leg = LegController(ser, model)
 
     print("\n" + "-"*50)
     print("Commands:")
-    print("  1 fwd/back <deg>  - rotate servo 1")
-    print("  2 out/in <deg>    - rotate servo 2")
-    print("  3 out/in <deg>    - rotate servo 3")
+    print("  15 out/in <deg>    - hip roll")
+    print("  16 fwd/back <deg>  - hip pitch")
+    print("  17 fwd/back <deg>  - knee")
+    print("  18 out/in <deg>    - ankle roll")
     print("  stop               - stop all")
     print("  quit               - exit")
     print("-"*50 + "\n")
@@ -330,31 +334,31 @@ def main():
         print("Demo mode (Ctrl+C to stop)\n")
         try:
             while True:
-                for sid in [1, 2, 3]:
+                for sid in [15, 16, 17, 18]:
                     print(f"-> Servo {sid} +15°")
-                    arm.rotate_by(sid, 15)
+                    leg.rotate_by(sid, 15)
                     time.sleep(0.5)
 
                     print(f"-> Servo {sid} center")
-                    arm.center(sid)
+                    leg.center(sid)
                     time.sleep(0.5)
 
                     print(f"-> Servo {sid} -15°")
-                    arm.rotate_by(sid, -15)
+                    leg.rotate_by(sid, -15)
                     time.sleep(0.5)
 
                     print(f"-> Servo {sid} center")
-                    arm.center(sid)
+                    leg.center(sid)
                     time.sleep(1)
 
         except KeyboardInterrupt:
             print("\nStopping...")
-            arm.stop_all()
+            leg.stop_all()
     else:
         # Interactive
         try:
             while True:
-                status = f"[1:{arm.angles[1]:+.0f}° 2:{arm.angles[2]:+.0f}° 3:{arm.angles[3]:+.0f}°]"
+                status = f"[15:{leg.angles[15]:+.0f}° 16:{leg.angles[16]:+.0f}° 17:{leg.angles[17]:+.0f}° 18:{leg.angles[18]:+.0f}°]"
                 cmd = input(f"{status} > ").strip().lower()
 
                 if not cmd:
@@ -362,45 +366,55 @@ def main():
                 elif cmd in ['quit', 'q']:
                     break
                 elif cmd in ['stop', 's']:
-                    arm.stop_all()
+                    leg.stop_all()
                     print("Stopped")
-                elif cmd.startswith('1 '):
+                elif cmd.startswith('15 '):
+                    parts = cmd.split()
+                    if len(parts) >= 3:
+                        direction = parts[1]
+                        deg = float(parts[2])
+                        if direction in ['out', 'o']:
+                            leg.rotate_by(15, deg)
+                        elif direction in ['in', 'i']:
+                            leg.rotate_by(15, -deg)
+                        print(f"Servo 15: {leg.angles[15]:+.0f}°")
+                elif cmd.startswith('16 '):
                     parts = cmd.split()
                     if len(parts) >= 3:
                         direction = parts[1]
                         deg = float(parts[2])
                         if direction in ['fwd', 'f']:
-                            arm.rotate_by(1, deg)
+                            leg.rotate_by(16, deg)
                         elif direction in ['back', 'b']:
-                            arm.rotate_by(1, -deg)
-                        print(f"Servo 1: {arm.angles[1]:+.0f}°")
-                elif cmd.startswith('2 '):
+                            leg.rotate_by(16, -deg)
+                        print(f"Servo 16: {leg.angles[16]:+.0f}°")
+                elif cmd.startswith('17 '):
+                    parts = cmd.split()
+                    if len(parts) >= 3:
+                        direction = parts[1]
+                        deg = float(parts[2])
+                        if direction in ['fwd', 'f']:
+                            leg.rotate_by(17, deg)
+                        elif direction in ['back', 'b']:
+                            leg.rotate_by(17, -deg)
+                        print(f"Servo 17: {leg.angles[17]:+.0f}°")
+                elif cmd.startswith('18 '):
                     parts = cmd.split()
                     if len(parts) >= 3:
                         direction = parts[1]
                         deg = float(parts[2])
                         if direction in ['out', 'o']:
-                            arm.rotate_by(2, deg)
+                            leg.rotate_by(18, deg)
                         elif direction in ['in', 'i']:
-                            arm.rotate_by(2, -deg)
-                        print(f"Servo 2: {arm.angles[2]:+.0f}°")
-                elif cmd.startswith('3 '):
-                    parts = cmd.split()
-                    if len(parts) >= 3:
-                        direction = parts[1]
-                        deg = float(parts[2])
-                        if direction in ['out', 'o']:
-                            arm.rotate_by(3, deg)
-                        elif direction in ['in', 'i']:
-                            arm.rotate_by(3, -deg)
-                        print(f"Servo 3: {arm.angles[3]:+.0f}°")
+                            leg.rotate_by(18, -deg)
+                        print(f"Servo 18: {leg.angles[18]:+.0f}°")
                 else:
-                    print("Commands: 1 fwd/back <deg>, 2 out/in <deg>, 3 out/in <deg>, stop, quit")
+                    print("Commands: 15 out/in <deg>, 16 fwd/back <deg>, 17 fwd/back <deg>, 18 out/in <deg>, stop, quit")
 
         except KeyboardInterrupt:
             print("\n")
 
-    arm.stop_all()
+    leg.stop_all()
     ser.close()
     print("[OK] Done")
 
