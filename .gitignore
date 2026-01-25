@@ -34,3 +34,7 @@ Thumbs.db
 *.tmp
 *.bak
 *.orig
+
+# Training logs and checkpoints
+models/ppo_logs/
+*.zip
