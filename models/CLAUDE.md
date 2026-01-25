@@ -20,6 +20,11 @@ LEFT ARM (channels 12, 13, 14):
   Servo 12: shoulder (forward/backward)
   Servo 13: upper arm (inward/outward)
   Servo 14: forearm (inward/outward)
+
+RIGHT ARM (channels 1, 2, 3):
+  Servo 1: shoulder (forward/backward)
+  Servo 2: upper arm (inward/outward)
+  Servo 3: forearm (inward/outward)
 ```
 
 ## Files
@@ -38,6 +43,13 @@ LEFT ARM:
   train_left_arm_mujoco.py    - simulation training
   deploy_left_arm_jetson.py   - deploy + calibrate
   left_arm_model_weights.json - calibration data
+
+RIGHT ARM:
+  right_arm_model.py           - timing model
+  right_arm_robot.xml          - MuJoCo model
+  train_right_arm_mujoco.py    - simulation training
+  deploy_right_arm_jetson.py   - deploy + calibrate
+  right_arm_model_weights.json - calibration data
 
 OTHER:
   verify_hardware.py      - check servo connection
@@ -89,10 +101,35 @@ Commands:
 - `14 out 30` / `14 in 30` - forearm
 - `stop`, `quit`
 
+## Right Arm Servos (Channels 1, 2, 3)
+
+### Calibrate
+```bash
+python3 deploy_right_arm_jetson.py --calibrate      # all servos
+python3 deploy_right_arm_jetson.py --calibrate 1    # servo 1 only
+python3 deploy_right_arm_jetson.py --calibrate 2    # servo 2 only
+python3 deploy_right_arm_jetson.py --calibrate 3    # servo 3 only
+```
+- Manually center servo, press Enter
+- Runs ±30° test cycles (FWD/BACK or OUT/IN)
+- Answer: f=drifted forward/out, b=drifted back/in, c=centered
+
+### Use
+```bash
+python3 deploy_right_arm_jetson.py          # interactive
+python3 deploy_right_arm_jetson.py --demo   # demo
+```
+Commands:
+- `1 fwd 30` / `1 back 30` - shoulder
+- `2 out 30` / `2 in 30` - upper arm
+- `3 out 30` / `3 in 30` - forearm
+- `stop`, `quit`
+
 ## MuJoCo Simulation
 ```bash
 python3 train_head_mujoco.py --headless
 python3 train_left_arm_mujoco.py --headless
+python3 train_right_arm_mujoco.py --headless
 ```
 
 ## Hiwonder Protocol (Continuous Rotation)
@@ -115,6 +152,11 @@ LEFT ARM:
   Servo 12 (shoulder): 1350 = forward, 1630 = backward  (REVERSED!)
   Servo 13 (upper arm): 1350 = out, 1630 = in  (REVERSED! limited inward range)
   Servo 14 (forearm):   1350 = out, 1630 = in  (REVERSED! limited inward range)
+
+RIGHT ARM:
+  Servo 1 (shoulder): 1580 = forward, 1420 = backward  (SWAPPED directions)
+  Servo 2 (upper arm): 1350 = out, 1630 = in  (REVERSED! limited inward range)
+  Servo 3 (forearm):   1350 = out, 1630 = in  (REVERSED! limited inward range)
 ```
 
 ## Calibrated Timing Values
@@ -131,3 +173,12 @@ LEFT ARM:
 Servo 12 calibrated:
 - Forward: 14.31 ms/deg
 - Backward: 15.04 ms/deg
+
+`right_arm_model_weights.json` (after calibration):
+```json
+{
+  "servo_1": {"spd_pos": 0.01667, "spd_neg": 0.01667},
+  "servo_2": {"spd_pos": 0.01667, "spd_neg": 0.01667},
+  "servo_3": {"spd_pos": 0.01667, "spd_neg": 0.01667}
+}
+```
