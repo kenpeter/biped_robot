@@ -113,8 +113,8 @@ HEAD (servo 0):
 
 LEFT ARM:
   Servo 12 (shoulder): 1350 = forward, 1630 = backward  (REVERSED!)
-  Servo 13 (upper arm): 1630 = out, 1350 = in  (TBD - needs calibration)
-  Servo 14 (forearm):   1630 = out, 1350 = in  (TBD - needs calibration)
+  Servo 13 (upper arm): 1350 = out, 1630 = in  (REVERSED! limited inward range)
+  Servo 14 (forearm):   1350 = out, 1630 = in  (REVERSED! limited inward range)
 ```
 
 ## Calibrated Timing Values

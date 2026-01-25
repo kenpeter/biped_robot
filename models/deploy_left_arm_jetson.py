@@ -36,8 +36,8 @@ STOP_VALUE = 1500
 # Format: (forward/out speed, backward/in speed)
 SERVO_SPEEDS = {
     12: (1350, 1630),  # shoulder: fwd, back (reversed)
-    13: (1630, 1350),  # upper arm: out, in
-    14: (1630, 1350),  # forearm: out, in
+    13: (1350, 1630),  # upper arm: out, in (reversed!)
+    14: (1350, 1630),  # forearm: out, in (reversed!)
 }
 
 from left_arm_model import ArmServoModel
@@ -142,7 +142,13 @@ def calibrate_servo(ser, model, servo_id):
     print("[OK] Starting from center\n")
 
     CYCLES = 3
-    ANGLE = 30
+    # Servo 13 and 14 have limited inward range - use asymmetric angles
+    if servo_id in [13, 14]:
+        POS_ANGLE = 30  # OUT - more space
+        NEG_ANGLE = 5   # IN - very limited space
+    else:
+        POS_ANGLE = 30
+        NEG_ANGLE = 30
     fwd_speed, back_speed = SERVO_SPEEDS[servo_id]
 
     # Direction names
@@ -153,14 +159,14 @@ def calibrate_servo(ser, model, servo_id):
 
     for attempt in range(10):
         print(f"--- Calibration run {attempt + 1} ---")
-        print(f"Running {CYCLES} cycles of ±{ANGLE}° movements...\n")
+        print(f"Running {CYCLES} cycles of +{POS_ANGLE}°/-{NEG_ANGLE}° movements...\n")
 
         for cycle in range(CYCLES):
             print(f"  Cycle {cycle+1}: ", end="", flush=True)
 
             # Forward/out
             print(f"{pos_name}..", end="", flush=True)
-            rotation_time = model.predict(servo_id, ANGLE)
+            rotation_time = model.predict(servo_id, POS_ANGLE)
             send_speed(ser, servo_id, fwd_speed)
             time.sleep(abs(rotation_time) * 0.98)
             stop_servo(ser, servo_id)
@@ -168,7 +174,7 @@ def calibrate_servo(ser, model, servo_id):
 
             # Back to center
             print("CTR..", end="", flush=True)
-            rotation_time = model.predict(servo_id, -ANGLE)
+            rotation_time = model.predict(servo_id, -POS_ANGLE)
             send_speed(ser, servo_id, back_speed)
             time.sleep(abs(rotation_time) * 0.98)
             stop_servo(ser, servo_id)
@@ -176,7 +182,7 @@ def calibrate_servo(ser, model, servo_id):
 
             # Backward/in
             print(f"{neg_name}..", end="", flush=True)
-            rotation_time = model.predict(servo_id, -ANGLE)
+            rotation_time = model.predict(servo_id, -NEG_ANGLE)
             send_speed(ser, servo_id, back_speed)
             time.sleep(abs(rotation_time) * 0.98)
             stop_servo(ser, servo_id)
@@ -184,7 +190,7 @@ def calibrate_servo(ser, model, servo_id):
 
             # Back to center
             print("CTR")
-            rotation_time = model.predict(servo_id, ANGLE)
+            rotation_time = model.predict(servo_id, NEG_ANGLE)
             send_speed(ser, servo_id, fwd_speed)
             time.sleep(abs(rotation_time) * 0.98)
             stop_servo(ser, servo_id)
