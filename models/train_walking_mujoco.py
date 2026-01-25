@@ -42,9 +42,11 @@ JOINT_NAMES = [
     "left_hip_roll", "left_hip_pitch", "left_knee", "left_ankle_roll"
 ]
 
-MODEL_PATH = '/home/jetson/work/biped_robot/models/biped_legs_robot.xml'
-POLICY_PATH = '/home/jetson/work/biped_robot/models/walking_policy.json'
-TIMING_PATH = '/home/jetson/work/biped_robot/models/walking_timing.json'
+# Get the script directory to make paths portable
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(SCRIPT_DIR, 'biped_legs_robot.xml')
+POLICY_PATH = os.path.join(SCRIPT_DIR, 'walking_policy.json')
+TIMING_PATH = os.path.join(SCRIPT_DIR, 'walking_timing.json')
 
 
 class WalkingEnv:

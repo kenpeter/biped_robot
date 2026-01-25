@@ -38,9 +38,9 @@ except ImportError:
     print("  pip install stable-baselines3 gymnasium")
     exit(1)
 
-MODEL_PATH = '/home/jetson/work/biped_robot/models/full_robot.xml'
-POLICY_PATH = '/home/jetson/work/biped_robot/models/full_robot_ppo.zip'
-LOG_PATH = '/home/jetson/work/biped_robot/models/ppo_logs'
+MODEL_PATH = '/home/kenpeter/work/biped_robot/models/full_robot.xml'
+POLICY_PATH = '/home/kenpeter/work/biped_robot/models/full_robot_ppo.zip'
+LOG_PATH = '/home/kenpeter/work/biped_robot/models/ppo_logs'
 
 
 class HumanoidEnv(gym.Env):
@@ -56,10 +56,10 @@ class HumanoidEnv(gym.Env):
         self.render_mode = render_mode
         self.viewer = None
 
-        # Timing
+        # Timing - realistic for slow servos
         self.dt = self.mj_model.opt.timestep
-        self.frame_skip = 5
-        self.max_episode_steps = 1000
+        self.frame_skip = 10  # More simulation steps per action for stability
+        self.max_episode_steps = 2000  # Longer episodes for slow movements
         self.step_count = 0
 
         # Action space: 15 actuators, range [-1, 1]
@@ -190,20 +190,20 @@ class HumanoidEnv(gym.Env):
         upright = torso_quat[0] ** 2  # w component, 1 when upright
         reward += 3.0 * upright
 
-        # 4. Forward velocity (main objective)
-        reward += 5.0 * forward_vel
+        # 4. Forward velocity (main objective) - reduced for slow servos
+        reward += 1.0 * forward_vel
 
-        # 5. Energy penalty
-        ctrl_cost = 0.1 * np.sum(np.square(action))
+        # 5. Energy penalty - higher penalty for smooth movements on slow servos
+        ctrl_cost = 0.3 * np.sum(np.square(action))
         reward -= ctrl_cost
 
-        # 6. Lateral velocity penalty
+        # 6. Lateral velocity penalty - higher for stability on slow servos
         lateral_vel = abs(self.mj_data.qvel[1])
-        reward -= 0.5 * lateral_vel
+        reward -= 1.0 * lateral_vel
 
-        # 7. Rotation penalty
+        # 7. Rotation penalty - higher for slow servo stability
         angular_z = abs(self.mj_data.qvel[5])
-        reward -= 0.3 * angular_z
+        reward -= 0.8 * angular_z
 
         return reward
 
@@ -284,14 +284,14 @@ def train(resume=False, total_timesteps=500_000):
         model = PPO(
             "MlpPolicy",
             env,
-            learning_rate=3e-4,
-            n_steps=2048,
-            batch_size=64,
-            n_epochs=10,
-            gamma=0.99,
+            learning_rate=1e-4,  # Slower learning for stable convergence
+            n_steps=4096,         # More steps for better statistics
+            batch_size=128,       # Larger batch for stability
+            n_epochs=15,         # More epochs per update
+            gamma=0.995,          # Longer horizon for slow movements
             gae_lambda=0.95,
-            clip_range=0.2,
-            ent_coef=0.01,
+            clip_range=0.1,      # Smaller clip for conservative updates
+            ent_coef=0.005,      # Less exploration once learning
             verbose=1,
             tensorboard_log=LOG_PATH
         )
