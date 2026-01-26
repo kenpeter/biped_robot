@@ -38,3 +38,7 @@ Thumbs.db
 # Training logs and checkpoints
 models/ppo_logs/
 *.zip
+
+# Exception: Allow trained policy models (but not checkpoints)
+!models/*_ppo.zip
+!models/*_policy.zip
