@@ -53,21 +53,25 @@ python3 train_full_robot_mujoco.py --test
 
 The reward function is optimized for bipedal walking based on 2024-2025 research. Here's what the robot learns:
 
-### 1. **Alive Bonus** (+2.0)
+### 1. **Alive Bonus** (+1.0)
 - Stay alive and keep training
+- Reduced from 2.0 to rebalance rewards
 
-### 2. **Height Reward** (+5.0 max)
+### 2. **Height Reward** (+2.0 max)
 - Encourages standing tall
+- Reduced from 5.0 - just enough to stand, not dominate
 - Penalty if too low (prevents crouching)
 
-### 3. **Upright Reward** (+3.0 max)
+### 3. **Upright Reward** (+1.5 max)
 - Critical for bipedal stability
+- Reduced from 3.0 - balanced with walking reward
 - Uses quaternion w-component to measure uprightness
 
-### 4. **Forward Velocity** (+3.0 × velocity)
-- Main objective: walk forward
-- **Increased from 0.5 to 3.0** to encourage forward movement
-- Critical for learning walking (not just standing)
+### 4. **Forward Velocity** (+10.0 × velocity) ⭐ MAIN OBJECTIVE
+- **Primary goal: walk forward fast!**
+- At 0.5 m/s: +5.0 reward
+- At 1.0 m/s: +10.0 reward (more than all standing rewards combined!)
+- This is THE dominant reward - robot must walk to succeed
 
 ### 5. **Foot Alternation Reward** (+1.5 max)
 - **Key for walking gait**

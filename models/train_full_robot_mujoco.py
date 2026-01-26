@@ -205,18 +205,18 @@ class HumanoidEnv(gym.Env):
         left_contact = 1.0 if left_foot_z < 0.05 else 0.0
 
         # 1. Alive bonus
-        reward += 2.0
+        reward += 1.0  # Reduced from 2.0
 
         # 2. Height reward (encourage standing tall)
-        height_reward = 5.0 * (torso_z - 0.25)
-        reward += np.clip(height_reward, -2, 5)
+        height_reward = 2.0 * (torso_z - 0.25)  # Reduced from 5.0
+        reward += np.clip(height_reward, -2, 2)
 
         # 3. Upright reward (critical for bipedal walking)
         upright = torso_quat[0] ** 2  # w component, 1 when upright
-        reward += 3.0 * upright
+        reward += 1.5 * upright  # Reduced from 3.0
 
-        # 4. Forward velocity (main objective) - INCREASED for walking
-        reward += 3.0 * forward_vel  # Increased from 0.5 to 3.0 to encourage forward movement
+        # 4. Forward velocity (MAIN OBJECTIVE) - Walking is the primary goal!
+        reward += 10.0 * forward_vel  # Increased to 10.0 - must dominate standing rewards
 
         # 5. Foot contact alternation reward (encourage walking gait)
         # Reward when feet alternate (one on ground, one in air)
@@ -306,7 +306,7 @@ def make_env(render=False):
     return _init
 
 
-def train(resume=False, total_timesteps=1_000_000, headless=False):
+def train(resume=False, total_timesteps=3_000_000, headless=False):
     """Train with PPO."""
     print("=" * 60)
     print("FULL HUMANOID TRAINING (PPO)")
