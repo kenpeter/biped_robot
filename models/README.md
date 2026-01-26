@@ -214,32 +214,53 @@ When training with UI (no `--headless` flag), you'll see:
 
 Once you have a trained policy (`full_robot_ppo.zip`), deploy it to your Jetson.
 
-### Two Deployment Options:
+### Three Deployment Options:
 
-#### Option 1: **Legs Only** (RECOMMENDED FIRST)
-Controls only 8 leg servos, freezes upper body. Prevents twisting!
+#### Option 1: **Slow Walking** (START HERE!) 🐾
+Scripted slow, human-like walking - like a baby learning to walk.
+
+```bash
+python3 deploy_slow_walk_jetson.py --demo    # Test individual movements
+python3 deploy_slow_walk_jetson.py           # Walk 20 slow steps
+```
+
+**Why start here:**
+- ✅ VERY SLOW movements (safe for hardware)
+- ✅ Explicit gait: lift leg → swing forward → put down
+- ✅ No ML policy - simple scripted walking
+- ✅ Each step takes ~5.5 seconds (deliberate)
+- ✅ Easy to debug and understand
+
+**How it works:**
+- Right leg: lift (1.5s) → swing (2s) → down (1.5s) → pause (0.5s)
+- Left leg: same pattern
+- Alternates legs like human walking
+- Upper body stays frozen
+
+#### Option 2: **Trained Policy (Legs Only)** (After slow walk works)
+Uses ML-trained policy, controls only legs.
 
 ```bash
 python3 deploy_legs_only_jetson.py --demo    # Test demo mode
 python3 deploy_legs_only_jetson.py           # Run trained policy
 ```
 
-**Why legs only:**
-- ✅ Prevents upper body twisting
-- ✅ Easier to control and debug
-- ✅ Safer for initial testing
-- ✅ Focuses on walking stability
+**Features:**
+- Uses trained PPO model for walking
+- Freezes upper body (prevents twisting)
+- Faster than scripted but still controlled
+- **Active servos (8):** both legs (hip roll, hip pitch, knee, ankle × 2)
+- **Frozen servos (7):** head (1) + both arms (6)
 
-**Frozen servos (7):** head (1) + both arms (6)
-**Active servos (8):** both legs (hip roll, hip pitch, knee, ankle × 2)
-
-#### Option 2: Full Body (Advanced)
-Controls all 15 servos. Only use after legs-only works!
+#### Option 3: **Full Body** (Advanced - use last!)
+Controls all 15 servos with trained policy.
 
 ```bash
 python3 deploy_full_robot_jetson.py --demo    # Test demo mode
 python3 deploy_full_robot_jetson.py           # Run trained policy
 ```
+
+**Warning:** Can cause twisting! Only use after options 1 & 2 work perfectly.
 
 ---
 
@@ -247,34 +268,51 @@ python3 deploy_full_robot_jetson.py           # Run trained policy
 
 **1. Copy files from your computer:**
 ```bash
-scp models/full_robot_ppo.zip jetson@<jetson-ip>:~/biped_robot/models/
+scp models/deploy_slow_walk_jetson.py jetson@<jetson-ip>:~/biped_robot/models/
 scp models/deploy_legs_only_jetson.py jetson@<jetson-ip>:~/biped_robot/models/
 scp models/deploy_full_robot_jetson.py jetson@<jetson-ip>:~/biped_robot/models/
+scp models/full_robot_ppo.zip jetson@<jetson-ip>:~/biped_robot/models/
 ```
 
 **2. On Jetson, install dependencies:**
 ```bash
-pip install stable-baselines3 pyserial
+# For scripted walking (Option 1) - only needs pyserial
+pip install pyserial
+
+# For trained policy (Options 2 & 3) - also needs ML libs
+pip install stable-baselines3
 
 # Verify servo board connection
 ls /dev/ttyUSB*  # Should show /dev/ttyUSB1
 ```
 
-**3. Test with legs-only first:**
+**3. Test progression (do in order!):**
 ```bash
 cd ~/biped_robot/models
-python3 deploy_legs_only_jetson.py --demo    # Safe demo mode
-python3 deploy_legs_only_jetson.py           # Trained policy (60 sec)
+
+# START HERE: Slow scripted walking
+python3 deploy_slow_walk_jetson.py --demo    # Test individual movements
+python3 deploy_slow_walk_jetson.py           # 20 slow steps
+
+# THEN: Trained policy (legs only)
+python3 deploy_legs_only_jetson.py --demo
+python3 deploy_legs_only_jetson.py
+
+# FINALLY: Full body (if legs work well)
+python3 deploy_full_robot_jetson.py --demo
+python3 deploy_full_robot_jetson.py
 ```
 
 ---
 
 ### Safety Notes:
-- **START WITH LEGS-ONLY** - prevents twisting
-- **Hold the robot** or mount on stand during first tests
-- Press **Ctrl+C** to emergency stop
+- **START WITH SLOW WALKING SCRIPT** - safest, easiest to debug
+- **Progress gradually**: slow walk → legs-only policy → full body
+- **Hold the robot** or mount on stand during ALL tests
+- **Press Ctrl+C** to emergency stop anytime
 - Servos automatically stop when script exits
-- Test demo mode before running trained policy
+- Watch for overheating - continuous rotation servos can heat up
+- If robot tips over, press Ctrl+C immediately
 
 ---
 
