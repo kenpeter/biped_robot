@@ -230,14 +230,110 @@ Based on 2024-2025 research on humanoid locomotion with deep RL:
 
 ---
 
+## Understanding Training Metrics
+
+### Most Important Metric: **Explained Variance**
+
+**What it measures:** How well the robot understands what's happening (0.0 to 1.0)
+
+```
+-∞ to 0.0  → Robot is confused / worse than guessing
+0.0 to 0.5 → Robot is learning the basics
+0.5 to 0.8 → Robot understands pretty well
+0.8 to 0.95 → Robot is an expert ⭐
+0.95 to 1.0 → Robot is a master (rare!)
+```
+
+**When to test:** Once explained variance reaches **0.9+**, test the robot!
+
+---
+
+### The 4 Different Losses:
+
+#### 1. **Loss** (Total Combined Loss)
+- **What:** Sum of all losses (value + policy + entropy)
+- **Scale:** 100-500 typical
+- **Good:** Trending downward (with fluctuations)
+
+#### 2. **Value Loss** (Critic Network)
+- **What:** Error in predicting future rewards
+- **Scale:** 100-1000+ (large because predicting cumulative rewards)
+- **Normal:** Fluctuates up and down - this is OK!
+- **Why large:** Predicting sums of many future rewards
+
+#### 3. **Policy Gradient Loss** (Actor Network)
+- **What:** How much to update action choices
+- **Scale:** -0.01 to -0.05 (very small)
+- **Negative is OK:** Just indicates gradient direction
+- **Good:** Small magnitude = stable updates
+
+#### 4. **Entropy Loss** (Exploration)
+- **What:** How random/exploratory actions are
+- **Scale:** -21 (random) to -5 (confident)
+- **Good:** Decreasing over time
+- **Your progress:** -21 → -9 = robot getting confident!
+
+---
+
+### Other Metrics:
+
+- **std (standard deviation)**: Action randomness
+  - Start: 1.0 (very random)
+  - End: 0.4-0.6 (confident but still some exploration)
+
+- **clip_fraction**: How often policy updates are clipped
+  - 0.1-0.3: Good, stable learning
+  - >0.3: Learning aggressively (might need tuning)
+
+- **approx_kl**: Policy change magnitude
+  - <0.01: Small, safe updates ✓
+  - >0.02: Large updates (might be unstable)
+
+---
+
+### Training Progress Example:
+
+```
+Step 0K:      explained_var=0.0,  loss=300, value_loss=800, entropy=-21
+Step 100K:    explained_var=0.5,  loss=150, value_loss=400, entropy=-18
+Step 500K:    explained_var=0.8,  loss=100, value_loss=300, entropy=-12
+Step 1M:      explained_var=0.9,  loss=80,  value_loss=250, entropy=-10  ← TEST NOW!
+Step 3M:      explained_var=0.93, loss=70,  value_loss=200, entropy=-9
+```
+
+**Key insight:** Metrics fluctuate! Value loss can go 300→500→250. This is NORMAL for reinforcement learning. Watch the trend over thousands of steps, not individual updates.
+
+---
+
+## When to Stop Training
+
+**Stop and test when:**
+1. ✅ Explained variance > 0.9
+2. ✅ Trained for 1M+ steps
+3. ✅ Loss is trending down (even with fluctuations)
+4. ✅ Entropy is decreasing (robot gaining confidence)
+
+**Don't wait for:**
+- ❌ Loss to reach exactly 0
+- ❌ Value loss to stop fluctuating
+- ❌ Perfect smooth curves
+
+**Reinforcement learning is noisy!** Test periodically (every 500K-1M steps).
+
+---
+
 ## Troubleshooting
 
 **Issue**: Training crashes or robot explodes
 - **Fix**: Check joint limits in `full_robot.xml`
 
-**Issue**: Reward doesn't increase
-- **Fix**: Try `--resume` to continue from checkpoint
-- Check if robot is just shuffling (increase foot alternation reward)
+**Issue**: Explained variance stuck below 0.5 after 1M steps
+- **Fix**: Reward function may need tuning
+- Check if robot is getting any positive rewards
+
+**Issue**: Value loss keeps increasing
+- **Fix**: This is normal short-term! Check the trend over 100K+ steps
+- If still increasing after 1M steps, learning rate may be too high
 
 **Issue**: Can't see visualization
 - **Fix**: Make sure you're NOT using `--headless` flag
@@ -246,6 +342,10 @@ Based on 2024-2025 research on humanoid locomotion with deep RL:
 **Issue**: Training too slow
 - **Fix**: Use `--headless` mode or faster hardware
 - Consider reducing `total_timesteps`
+
+**Issue**: Robot walks in test but falls during training visualization
+- **Fix**: This is normal! During training it explores randomly (high entropy)
+- Test mode uses deterministic policy (no randomness)
 
 ---
 
