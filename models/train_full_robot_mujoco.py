@@ -11,8 +11,9 @@ All servos:
 Usage:
   python3 train_full_robot_mujoco.py              # train with PPO (shows UI)
   python3 train_full_robot_mujoco.py --headless   # train without UI
+  python3 train_full_robot_mujoco.py --num-envs 8 # train with 8 parallel robots (faster!)
   python3 train_full_robot_mujoco.py --resume     # resume training (shows UI)
-  python3 train_full_robot_mujoco.py --resume --headless  # resume without UI
+  python3 train_full_robot_mujoco.py --resume --headless --num-envs 8  # resume with 8 robots
   python3 train_full_robot_mujoco.py --test       # test saved policy
 """
 
@@ -306,7 +307,7 @@ def make_env(render=False):
     return _init
 
 
-def train(resume=False, total_timesteps=1_000_000, headless=False):
+def train(resume=False, total_timesteps=3_000_000, headless=False, num_envs=1):
     """Train with PPO."""
     print("=" * 60)
     print("FULL HUMANOID TRAINING (PPO)")
@@ -314,11 +315,18 @@ def train(resume=False, total_timesteps=1_000_000, headless=False):
     print(f"\nTimesteps: {total_timesteps:,}")
     print(f"Resume: {resume}")
     print(f"Headless: {headless}")
+    print(f"Parallel robots: {num_envs}")
     print()
 
-    # Create environment
-    print("[ENV] Creating environment...")
-    env = DummyVecEnv([make_env(render=not headless)])
+    # Create environment(s)
+    if num_envs == 1:
+        # Single environment with optional rendering
+        print("[ENV] Creating single environment...")
+        env = DummyVecEnv([make_env(render=not headless)])
+    else:
+        # Multiple parallel environments (no rendering when parallel)
+        print(f"[ENV] Creating {num_envs} parallel environments...")
+        env = SubprocVecEnv([make_env(render=False) for _ in range(num_envs)])
 
     # Create or load model
     if resume and os.path.exists(POLICY_PATH):
@@ -417,12 +425,26 @@ def test():
 def main():
     headless = "--headless" in sys.argv
 
+    # Parse --num-envs argument (default: 1)
+    num_envs = 1
+    for i, arg in enumerate(sys.argv):
+        if arg == "--num-envs" and i + 1 < len(sys.argv):
+            try:
+                num_envs = int(sys.argv[i + 1])
+                if num_envs < 1:
+                    print("Error: --num-envs must be >= 1")
+                    sys.exit(1)
+            except ValueError:
+                print(f"Error: Invalid --num-envs value: {sys.argv[i + 1]}")
+                sys.exit(1)
+            break
+
     if "--test" in sys.argv:
         test()
     elif "--resume" in sys.argv:
-        train(resume=True, headless=headless)
+        train(resume=True, headless=headless, num_envs=num_envs)
     else:
-        train(resume=False, headless=headless)
+        train(resume=False, headless=headless, num_envs=num_envs)
 
 
 if __name__ == "__main__":
