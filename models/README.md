@@ -212,36 +212,69 @@ When training with UI (no `--headless` flag), you'll see:
 
 ## Deploying to Jetson
 
-Once you have a trained policy (`full_robot_ppo.zip`), deploy it to your Jetson:
+Once you have a trained policy (`full_robot_ppo.zip`), deploy it to your Jetson.
 
-### On Your Computer:
+### Two Deployment Options:
+
+#### Option 1: **Legs Only** (RECOMMENDED FIRST)
+Controls only 8 leg servos, freezes upper body. Prevents twisting!
+
 ```bash
-# 1. Clone repo on Jetson or copy files
+python3 deploy_legs_only_jetson.py --demo    # Test demo mode
+python3 deploy_legs_only_jetson.py           # Run trained policy
+```
+
+**Why legs only:**
+- ✅ Prevents upper body twisting
+- ✅ Easier to control and debug
+- ✅ Safer for initial testing
+- ✅ Focuses on walking stability
+
+**Frozen servos (7):** head (1) + both arms (6)
+**Active servos (8):** both legs (hip roll, hip pitch, knee, ankle × 2)
+
+#### Option 2: Full Body (Advanced)
+Controls all 15 servos. Only use after legs-only works!
+
+```bash
+python3 deploy_full_robot_jetson.py --demo    # Test demo mode
+python3 deploy_full_robot_jetson.py           # Run trained policy
+```
+
+---
+
+### Setup on Jetson:
+
+**1. Copy files from your computer:**
+```bash
 scp models/full_robot_ppo.zip jetson@<jetson-ip>:~/biped_robot/models/
+scp models/deploy_legs_only_jetson.py jetson@<jetson-ip>:~/biped_robot/models/
 scp models/deploy_full_robot_jetson.py jetson@<jetson-ip>:~/biped_robot/models/
 ```
 
-### On Jetson:
+**2. On Jetson, install dependencies:**
 ```bash
-# 1. Install dependencies
 pip install stable-baselines3 pyserial
 
-# 2. Test servos are connected
+# Verify servo board connection
 ls /dev/ttyUSB*  # Should show /dev/ttyUSB1
-
-# 3. Run demo mode first (safe testing)
-cd ~/biped_robot/models
-python3 deploy_full_robot_jetson.py --demo
-
-# 4. Run trained policy (60 seconds)
-python3 deploy_full_robot_jetson.py
 ```
 
+**3. Test with legs-only first:**
+```bash
+cd ~/biped_robot/models
+python3 deploy_legs_only_jetson.py --demo    # Safe demo mode
+python3 deploy_legs_only_jetson.py           # Trained policy (60 sec)
+```
+
+---
+
 ### Safety Notes:
-- **Start with `--demo` mode** to test basic servo control
-- **Hold the robot** or have it on a stand during first tests
+- **START WITH LEGS-ONLY** - prevents twisting
+- **Hold the robot** or mount on stand during first tests
 - Press **Ctrl+C** to emergency stop
-- Servos will automatically stop when script exits
+- Servos automatically stop when script exits
+- Test demo mode before running trained policy
 
 ---
 
