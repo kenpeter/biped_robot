@@ -9,9 +9,11 @@ All servos:
   - Left leg: 15 (hip roll), 16 (hip pitch), 17 (knee), 18 (ankle)
 
 Usage:
-  python3 train_full_robot_mujoco.py              # train with PPO
+  python3 train_full_robot_mujoco.py              # train with PPO (shows UI)
+  python3 train_full_robot_mujoco.py --headless   # train without UI
+  python3 train_full_robot_mujoco.py --resume     # resume training (shows UI)
+  python3 train_full_robot_mujoco.py --resume --headless  # resume without UI
   python3 train_full_robot_mujoco.py --test       # test saved policy
-  python3 train_full_robot_mujoco.py --resume     # resume training
 """
 
 import numpy as np
@@ -62,6 +64,10 @@ class HumanoidEnv(gym.Env):
         self.max_episode_steps = 2000  # Longer episodes for slow movements
         self.step_count = 0
 
+        # Gait tracking for foot alternation rewards
+        self.last_foot_contact = [0, 0]  # [right, left]
+        self.gait_phase = 0.0
+
         # Action space: 15 actuators, range [-1, 1]
         self.n_actuators = 15
         self.action_space = spaces.Box(
@@ -83,8 +89,8 @@ class HumanoidEnv(gym.Env):
 
     def _get_obs_dim(self):
         """Get observation dimension."""
-        # Joint pos (15) + joint vel (15) + torso quat (4) + torso vel (6) + foot contacts (2)
-        return 15 + 15 + 4 + 6 + 2
+        # Joint pos (15) + joint vel (15) + torso quat (4) + torso vel (6) + foot contacts (2) + gait phase (2: sin, cos)
+        return 15 + 15 + 4 + 6 + 2 + 2
 
     def _setup_init_pose(self):
         """Setup initial standing pose."""
@@ -120,6 +126,8 @@ class HumanoidEnv(gym.Env):
             mujoco.mj_step(self.mj_model, self.mj_data)
 
         self.step_count = 0
+        self.gait_phase = 0.0
+        self.last_foot_contact = [0, 0]
         return self._get_obs(), {}
 
     def _get_obs(self):
@@ -146,7 +154,10 @@ class HumanoidEnv(gym.Env):
             1.0 if left_foot_z < 0.05 else 0.0
         ])
 
-        obs = np.concatenate([joint_pos, joint_vel, torso_quat, torso_vel, foot_contacts])
+        # Gait phase clock (helps robot learn periodic walking pattern)
+        gait_clock = np.array([np.sin(self.gait_phase), np.cos(self.gait_phase)])
+
+        obs = np.concatenate([joint_pos, joint_vel, torso_quat, torso_vel, foot_contacts, gait_clock])
         return obs.astype(np.float32)
 
     def _get_body_id(self, name):
@@ -164,20 +175,34 @@ class HumanoidEnv(gym.Env):
 
         self.step_count += 1
 
+        # Update gait phase (2 Hz walking cycle)
+        self.gait_phase += 2.0 * np.pi * self.dt * self.frame_skip * 2.0
+        self.gait_phase = self.gait_phase % (2.0 * np.pi)
+
         obs = self._get_obs()
         reward = self._get_reward(action)
         terminated = self._is_terminated()
         truncated = self.step_count >= self.max_episode_steps
 
+        # Render if in human mode
+        if self.render_mode == "human":
+            self.render()
+
         return obs, reward, terminated, truncated, {}
 
     def _get_reward(self, action):
-        """Calculate reward."""
+        """Calculate reward - optimized for bipedal walking."""
         reward = 0.0
 
         torso_z = self.mj_data.qpos[2]
         torso_quat = self.mj_data.qpos[3:7]
         forward_vel = self.mj_data.qvel[0]
+
+        # Get foot contacts
+        right_foot_z = self.mj_data.xpos[self._get_body_id("right_foot")][2]
+        left_foot_z = self.mj_data.xpos[self._get_body_id("left_foot")][2]
+        right_contact = 1.0 if right_foot_z < 0.05 else 0.0
+        left_contact = 1.0 if left_foot_z < 0.05 else 0.0
 
         # 1. Alive bonus
         reward += 2.0
@@ -186,24 +211,43 @@ class HumanoidEnv(gym.Env):
         height_reward = 5.0 * (torso_z - 0.25)
         reward += np.clip(height_reward, -2, 5)
 
-        # 3. Upright reward
+        # 3. Upright reward (critical for bipedal walking)
         upright = torso_quat[0] ** 2  # w component, 1 when upright
         reward += 3.0 * upright
 
-        # 4. Forward velocity (main objective) - reduced for slow servos
-        reward += 1.0 * forward_vel
+        # 4. Forward velocity (main objective) - START SLOW for learning
+        reward += 0.5 * forward_vel
 
-        # 5. Energy penalty - higher penalty for smooth movements on slow servos
+        # 5. Foot contact alternation reward (encourage walking gait)
+        # Reward when feet alternate (one on ground, one in air)
+        foot_alternation = abs(right_contact - left_contact)
+        reward += 1.5 * foot_alternation
+
+        # 6. Foot symmetry reward (discourage limping)
+        # Get leg joint positions (hip pitch and knee for both legs)
+        r_hip_pitch = self.mj_data.qpos[7 + 8]  # right hip pitch
+        r_knee = self.mj_data.qpos[7 + 9]       # right knee
+        l_hip_pitch = self.mj_data.qpos[7 + 12] # left hip pitch
+        l_knee = self.mj_data.qpos[7 + 13]      # left knee
+
+        leg_symmetry = -abs(r_hip_pitch + l_hip_pitch) - abs(r_knee + l_knee)
+        reward += 0.5 * leg_symmetry
+
+        # 7. Energy penalty - smooth movements
         ctrl_cost = 0.3 * np.sum(np.square(action))
         reward -= ctrl_cost
 
-        # 6. Lateral velocity penalty - higher for stability on slow servos
+        # 8. Lateral drift penalty - walk straight
         lateral_vel = abs(self.mj_data.qvel[1])
         reward -= 1.0 * lateral_vel
 
-        # 7. Rotation penalty - higher for slow servo stability
+        # 9. Rotation penalty - don't spin
         angular_z = abs(self.mj_data.qvel[5])
         reward -= 0.8 * angular_z
+
+        # 10. Penalty for dragging feet
+        if right_contact and left_contact:
+            reward -= 0.5  # Both feet on ground is okay but don't stay there
 
         return reward
 
@@ -262,18 +306,19 @@ def make_env(render=False):
     return _init
 
 
-def train(resume=False, total_timesteps=500_000):
+def train(resume=False, total_timesteps=500_000, headless=False):
     """Train with PPO."""
     print("=" * 60)
     print("FULL HUMANOID TRAINING (PPO)")
     print("=" * 60)
     print(f"\nTimesteps: {total_timesteps:,}")
     print(f"Resume: {resume}")
+    print(f"Headless: {headless}")
     print()
 
     # Create environment
     print("[ENV] Creating environment...")
-    env = DummyVecEnv([make_env(render=True)])
+    env = DummyVecEnv([make_env(render=not headless)])
 
     # Create or load model
     if resume and os.path.exists(POLICY_PATH):
@@ -370,12 +415,14 @@ def test():
 
 
 def main():
+    headless = "--headless" in sys.argv
+
     if "--test" in sys.argv:
         test()
     elif "--resume" in sys.argv:
-        train(resume=True)
+        train(resume=True, headless=headless)
     else:
-        train(resume=False)
+        train(resume=False, headless=headless)
 
 
 if __name__ == "__main__":
