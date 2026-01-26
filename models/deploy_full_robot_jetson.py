@@ -12,6 +12,7 @@ Usage:
     python3 deploy_full_robot_jetson.py --demo    # Demo mode with manual control
 """
 
+import os
 import sys
 import time
 import serial
@@ -266,7 +267,9 @@ def main():
     if '--demo' in sys.argv:
         demo_mode()
     else:
-        policy_path = '/home/kenpeter/work/biped_robot/models/full_robot_ppo.zip'
+        # Use path relative to this script's location
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        policy_path = os.path.join(script_dir, 'full_robot_ppo')  # No .zip - SB3 adds it
         runner = PolicyRunner(policy_path)
         runner.run(duration=60.0)
 
