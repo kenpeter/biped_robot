@@ -457,6 +457,16 @@ Step 3M:      explained_var=0.93, loss=70,  value_loss=200, entropy=-9
 - **Fix**: This is normal! During training it explores randomly (high entropy)
 - Test mode uses deterministic policy (no randomness)
 
+**Issue**: Robot stands still or falls instead of walking forward
+- **Fix**: **Reward balance problem!** Check that forward velocity reward dominates
+- Standing rewards (alive + height + upright) must be LESS than walking rewards
+- Current balanced values:
+  - Standing total: ~4.5 (alive=1.0, height=2.0, upright=1.5)
+  - Walking at 0.5 m/s: ~10.9 (forward=5.0, foot_alt=1.5, + standing)
+  - **Walking must give 2-3x more reward than standing!**
+- If robot prefers standing: Increase `forward_vel` reward (currently 10.0)
+- If robot falls too much: Increase `upright` reward (currently 1.5)
+
 ---
 
 ## Contact
