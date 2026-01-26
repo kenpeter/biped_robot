@@ -306,7 +306,7 @@ def make_env(render=False):
     return _init
 
 
-def train(resume=False, total_timesteps=500_000, headless=False):
+def train(resume=False, total_timesteps=3_000_000, headless=False):
     """Train with PPO."""
     print("=" * 60)
     print("FULL HUMANOID TRAINING (PPO)")
