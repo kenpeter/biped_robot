@@ -210,12 +210,47 @@ When training with UI (no `--headless` flag), you'll see:
 
 ---
 
+## Deploying to Jetson
+
+Once you have a trained policy (`full_robot_ppo.zip`), deploy it to your Jetson:
+
+### On Your Computer:
+```bash
+# 1. Clone repo on Jetson or copy files
+scp models/full_robot_ppo.zip jetson@<jetson-ip>:~/biped_robot/models/
+scp models/deploy_full_robot_jetson.py jetson@<jetson-ip>:~/biped_robot/models/
+```
+
+### On Jetson:
+```bash
+# 1. Install dependencies
+pip install stable-baselines3 pyserial
+
+# 2. Test servos are connected
+ls /dev/ttyUSB*  # Should show /dev/ttyUSB1
+
+# 3. Run demo mode first (safe testing)
+cd ~/biped_robot/models
+python3 deploy_full_robot_jetson.py --demo
+
+# 4. Run trained policy (60 seconds)
+python3 deploy_full_robot_jetson.py
+```
+
+### Safety Notes:
+- **Start with `--demo` mode** to test basic servo control
+- **Hold the robot** or have it on a stand during first tests
+- Press **Ctrl+C** to emergency stop
+- Servos will automatically stop when script exits
+
+---
+
 ## Next Steps
 
 1. **Train the robot**: Start with `python3 train_full_robot_mujoco.py`
-2. **Monitor progress**: Watch reward increase over time
-3. **Test the policy**: Use `--test` to see trained behavior
-4. **Deploy to hardware**: Use deployment scripts in CLAUDE.md
+2. **Monitor progress**: Watch explained variance reach 0.9+
+3. **Test the policy**: Use `--test` to see trained behavior in simulation
+4. **Deploy to hardware**: Follow deployment guide above
 
 ---
 
