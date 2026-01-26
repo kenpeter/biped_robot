@@ -64,10 +64,10 @@ The reward function is optimized for bipedal walking based on 2024-2025 research
 - Critical for bipedal stability
 - Uses quaternion w-component to measure uprightness
 
-### 4. **Forward Velocity** (+0.5 × velocity)
+### 4. **Forward Velocity** (+3.0 × velocity)
 - Main objective: walk forward
-- **Started at 0.5** (not 1.0) for gradual learning
-- Increase this after robot learns to balance
+- **Increased from 0.5 to 3.0** to encourage forward movement
+- Critical for learning walking (not just standing)
 
 ### 5. **Foot Alternation Reward** (+1.5 max)
 - **Key for walking gait**

@@ -215,8 +215,8 @@ class HumanoidEnv(gym.Env):
         upright = torso_quat[0] ** 2  # w component, 1 when upright
         reward += 3.0 * upright
 
-        # 4. Forward velocity (main objective) - START SLOW for learning
-        reward += 0.5 * forward_vel
+        # 4. Forward velocity (main objective) - INCREASED for walking
+        reward += 3.0 * forward_vel  # Increased from 0.5 to 3.0 to encourage forward movement
 
         # 5. Foot contact alternation reward (encourage walking gait)
         # Reward when feet alternate (one on ground, one in air)
