@@ -76,6 +76,12 @@ class HumanoidEnv(gym.Env):
         self.right_foot_last_contact_time = 0.0
         self.left_foot_last_contact_time = 0.0
 
+        # CRITICAL: Track which foot is stance leg (prevents hopping exploit)
+        self.stance_leg = None  # 'right', 'left', or None
+        self.steps_on_same_leg = 0  # How long on same stance leg
+        self.total_foot_switches = 0  # Total times stance leg switched
+        self.last_switch_step = 0
+
         # Action space: 17 actuators, range [-1, 1]
         self.n_actuators = 17
         self.action_space = spaces.Box(
@@ -141,6 +147,12 @@ class HumanoidEnv(gym.Env):
         self.right_foot_airtime = 0.0
         self.left_foot_airtime = 0.0
 
+        # Reset foot switching trackers
+        self.stance_leg = None
+        self.steps_on_same_leg = 0
+        self.total_foot_switches = 0
+        self.last_switch_step = 0
+
         return self._get_obs(), {}
 
     def _get_obs(self):
@@ -204,13 +216,13 @@ class HumanoidEnv(gym.Env):
         return obs, reward, terminated, truncated, {}
 
     def _get_reward(self, action):
-        """Calculate reward - IMPROVED for stable bipedal walking.
+        """Calculate reward - v3 ANTI-HOPPING with explicit foot switching.
 
-        Key changes from previous version:
-        - Lower airtime threshold (0.15s vs 0.4s) for realistic walking
-        - Dense foot height reward to encourage active lifting
-        - Higher single contact reward for better weight shifting
-        - Stronger forward velocity incentive
+        THE CRITICAL INSIGHT: Hopping satisfies most rewards (forward movement,
+        single foot contact, foot lifting). The ONLY difference between hopping
+        and walking is: WALKING SWITCHES WHICH FOOT IS DOWN!
+
+        This version makes foot switching the PRIMARY reward signal.
         """
         reward = 0.0
 
@@ -225,74 +237,81 @@ class HumanoidEnv(gym.Env):
         right_contact = right_foot_z < 0.05
         left_contact = left_foot_z < 0.05
 
-        # Update airtime tracking
-        dt = self.dt * self.frame_skip
-        if not right_contact:
-            self.right_foot_airtime += dt
-        else:
-            self.right_foot_airtime = 0.0
+        # Determine current stance leg (which foot has primary contact)
+        current_stance = None
+        if right_contact and not left_contact:
+            current_stance = 'right'
+        elif left_contact and not right_contact:
+            current_stance = 'left'
+        # If both or neither, keep previous stance
 
-        if not left_contact:
-            self.left_foot_airtime += dt
-        else:
-            self.left_foot_airtime = 0.0
+        # Track stance leg changes (THIS IS THE KEY!)
+        if current_stance is not None:
+            if self.stance_leg is None:
+                # First time establishing stance
+                self.stance_leg = current_stance
+                self.steps_on_same_leg = 0
+            elif self.stance_leg != current_stance:
+                # ⭐ STANCE LEG SWITCHED! This is walking, not hopping!
+                reward += 2.0  # HUGE REWARD - this is what we want!
+                self.stance_leg = current_stance
+                self.total_foot_switches += 1
+                self.last_switch_step = self.step_count
+                self.steps_on_same_leg = 0
+            else:
+                # Same stance leg, increment counter
+                self.steps_on_same_leg += 1
 
-        # 1. Forward velocity tracking (weight: 0.5) - INCREASED for stronger incentive
-        reward += 0.5 * np.clip(forward_vel, 0, 1.0)  # Clip to prevent exploits
+        # PENALTY: Staying on same foot too long = hopping!
+        # After 20 steps (~1 second) on same leg, start penalizing heavily
+        if self.steps_on_same_leg > 20:
+            penalty = (self.steps_on_same_leg - 20) * 0.05
+            reward -= min(penalty, 2.0)  # Cap at -2.0
 
-        # 2. Lateral velocity penalty (weight: 0.2) - walk straight
+        # 1. Forward velocity (weight: 0.3) - REDUCED, not primary anymore
+        reward += 0.3 * np.clip(forward_vel, 0, 1.0)
+
+        # 2. Lateral velocity penalty
         reward -= 0.2 * abs(lateral_vel)
 
-        # 3. Upright orientation (weight: 0.3) - INCREASED importance
-        upright = torso_quat[0] ** 2  # w component, 1 when upright
-        reward += 0.3 * upright
+        # 3. Upright orientation (weight: 0.5) - INCREASED for stability
+        upright = torso_quat[0] ** 2
+        reward += 0.5 * upright
 
-        # 4. Base height penalty (weight: 0.02) - REDUCED to allow dynamic movement
+        # 4. Base height
         height_error = abs(torso_z - 0.42)
         reward -= 0.02 * height_error
 
-        # 5. SINGLE FOOT CONTACT - KEY FOR WALKING! (weight: 0.3) - INCREASED
-        # Reward when exactly ONE foot is on ground (stance-swing cycle)
-        single_contact = (right_contact and not left_contact) or (left_contact and not right_contact)
-        if single_contact:
-            reward += 0.3
+        # 5. Reward swing foot being off ground (only the NON-stance foot)
+        if self.stance_leg == 'right' and not left_contact:
+            swing_height = np.clip(left_foot_z / 0.15, 0, 1.0)
+            reward += 0.3 * swing_height
+        elif self.stance_leg == 'left' and not right_contact:
+            swing_height = np.clip(right_foot_z / 0.15, 0, 1.0)
+            reward += 0.3 * swing_height
 
-        # 6. DENSE FOOT HEIGHT REWARD - NEW! (weight: 0.5)
-        # Reward for actively lifting feet off the ground during swing phase
-        if not right_contact:
-            foot_lift_reward = np.clip(right_foot_z / 0.15, 0, 1.0)  # Max reward at 15cm
-            reward += 0.5 * foot_lift_reward
-
-        if not left_contact:
-            foot_lift_reward = np.clip(left_foot_z / 0.15, 0, 1.0)  # Max reward at 15cm
-            reward += 0.5 * foot_lift_reward
-
-        # 7. AIRTIME BONUS - REDUCED THRESHOLD (weight: 0.5 sparse)
-        # Reward each foot that achieves >0.15 second airtime before touchdown
-        # This is more realistic for robot walking (was 0.4s, now 0.15s)
-        airtime_threshold = 0.15
-        if right_contact and self.right_foot_airtime >= airtime_threshold:
-            reward += 0.5  # Bonus on touchdown after sufficient airtime
-
-        if left_contact and self.left_foot_airtime >= airtime_threshold:
-            reward += 0.5  # Bonus on touchdown after sufficient airtime
-
-        # 8. FOOT ALTERNATION - NEW! (weight: 0.2)
-        # Encourage switching which foot is in swing phase
-        both_on_ground = right_contact and left_contact
+        # 6. STRONG penalty for both feet in air (falling/jumping)
         both_in_air = not right_contact and not left_contact
-        if both_on_ground:
-            reward -= 0.2  # Penalize both feet on ground (except briefly)
         if both_in_air:
-            reward -= 0.5  # Strongly penalize both feet in air (falling/jumping)
+            reward -= 1.0
 
-        # 9. Action smoothness (weight: 0.01) - REDUCED to allow more dynamic motion
+        # 7. Small penalty for both feet on ground (brief during walking is OK)
+        both_on_ground = right_contact and left_contact
+        if both_on_ground:
+            reward -= 0.1
+
+        # 8. Reward frequency of switches (encourage consistent alternation)
+        if self.step_count > 0:
+            switch_rate = self.total_foot_switches / self.step_count
+            reward += 0.5 * switch_rate  # Reward ~0.01-0.02 switches per step
+
+        # 9. Action smoothness
         ctrl_cost = np.sum(np.square(action))
-        reward -= 0.01 * ctrl_cost
+        reward -= 0.005 * ctrl_cost
 
-        # 10. Base acceleration penalty (weight: 0.05) - REDUCED for dynamic walking
+        # 10. Base acceleration penalty
         base_acc = np.linalg.norm(self.mj_data.qacc[0:3])
-        reward -= 0.05 * base_acc
+        reward -= 0.02 * base_acc
 
         return reward
 
