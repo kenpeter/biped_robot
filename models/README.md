@@ -43,6 +43,15 @@ python3 train_full_robot_mujoco.py --headless --num-envs 16  # 16 robots (3-4x f
 python3 train_full_robot_mujoco.py --resume --headless --num-envs 8  # resume with 8 robots
 ```
 
+**Specify training duration**:
+```bash
+python3 train_full_robot_mujoco.py --timesteps 5000000       # Train for 5M steps
+python3 train_full_robot_mujoco.py --timesteps 10000000 --headless --num-envs 8  # 10M steps with 8 robots
+python3 train_full_robot_mujoco.py --resume --timesteps 3000000  # Resume and train 3M more steps
+```
+
+**Default**: 1,000,000 steps (~15-30 minutes with 8 robots)
+
 **Performance comparison** (tested on RTX 4070 Ti + multi-core CPU):
 - 1 robot: ~1,300 FPS (baseline)
 - 8 robots: ~4,300 FPS (**3.3x faster!**)
@@ -62,10 +71,13 @@ python3 train_full_robot_mujoco.py --test
 ### Training Details
 
 - **Algorithm**: PPO (Proximal Policy Optimization)
-- **Default timesteps**: 500,000 (configurable in code)
+- **Default timesteps**: 1,000,000 (use `--timesteps` to change)
 - **Checkpoints**: Saved every 10,000 steps to `models/ppo_logs/`
 - **Final policy**: Saved as `models/full_robot_ppo.zip`
-- **Expected time**: 20+ hours for good walking (380M+ samples)
+- **Expected time**:
+  - 1M steps: ~15-30 min (quick test)
+  - 5M steps: ~1-2 hours (decent walking)
+  - 10M+ steps: ~3-6 hours (good walking)
 
 ---
 

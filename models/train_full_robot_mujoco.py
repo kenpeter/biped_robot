@@ -9,11 +9,12 @@ All servos (17 DOF):
   - Left leg: 15 (hip roll), 16 (hip pitch), 17 (knee), 18 (ankle roll), 19 (ankle pitch)
 
 Usage:
-  python3 train_full_robot_mujoco.py              # train with PPO (shows UI)
+  python3 train_full_robot_mujoco.py              # train with PPO (shows UI, 1M steps)
   python3 train_full_robot_mujoco.py --headless   # train without UI
   python3 train_full_robot_mujoco.py --num-envs 8 # train with 8 parallel robots (faster!)
+  python3 train_full_robot_mujoco.py --timesteps 5000000  # train for 5M steps (default: 1M)
   python3 train_full_robot_mujoco.py --resume     # resume training (shows UI)
-  python3 train_full_robot_mujoco.py --resume --headless --num-envs 8  # resume with 8 robots
+  python3 train_full_robot_mujoco.py --resume --headless --num-envs 8 --timesteps 10000000
   python3 train_full_robot_mujoco.py --test       # test saved policy
 """
 
@@ -445,12 +446,26 @@ def main():
                 sys.exit(1)
             break
 
+    # Parse --timesteps argument (default: 1,000,000)
+    timesteps = 1_000_000
+    for i, arg in enumerate(sys.argv):
+        if arg == "--timesteps" and i + 1 < len(sys.argv):
+            try:
+                timesteps = int(sys.argv[i + 1])
+                if timesteps < 1000:
+                    print("Error: --timesteps must be >= 1000")
+                    sys.exit(1)
+            except ValueError:
+                print(f"Error: Invalid --timesteps value: {sys.argv[i + 1]}")
+                sys.exit(1)
+            break
+
     if "--test" in sys.argv:
         test()
     elif "--resume" in sys.argv:
-        train(resume=True, headless=headless, num_envs=num_envs)
+        train(resume=True, total_timesteps=timesteps, headless=headless, num_envs=num_envs)
     else:
-        train(resume=False, headless=headless, num_envs=num_envs)
+        train(resume=False, total_timesteps=timesteps, headless=headless, num_envs=num_envs)
 
 
 if __name__ == "__main__":
