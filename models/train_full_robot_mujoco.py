@@ -262,14 +262,16 @@ class HumanoidEnv(gym.Env):
                 self.steps_on_same_leg += 1
 
         # Our v3: PENALTY for staying on same foot too long (hopping!)
-        if self.steps_on_same_leg > 20:
-            penalty = (self.steps_on_same_leg - 20) * 0.05
-            reward -= min(penalty, 2.0)  # Cap at -2.0
+        # INCREASED: Penalty now starts earlier and grows faster
+        if self.steps_on_same_leg > 10:  # Start at 10 steps, not 20
+            penalty = (self.steps_on_same_leg - 10) * 0.2  # 4x stronger: 0.2 instead of 0.05
+            reward -= min(penalty, 5.0)  # Higher cap: -5.0 instead of -2.0
 
         # ========== PRIMARY OBJECTIVES (Isaac Lab style) ==========
 
-        # 1. Forward velocity tracking (weight: 1.0) - Like Isaac Lab H1
-        reward += 1.0 * np.clip(forward_vel, 0, 1.0)
+        # 1. Forward velocity tracking (weight: 0.5) - REDUCED to prevent leaning
+        # Isaac Lab uses 1.0 but their robot is more stable
+        reward += 0.5 * np.clip(forward_vel, 0, 1.0)
 
         # 2. Lateral velocity penalty (walk straight)
         reward -= 0.2 * abs(lateral_vel)
@@ -316,10 +318,16 @@ class HumanoidEnv(gym.Env):
         if both_in_air:
             reward -= 1.0
 
-        # 8. Small penalty for both feet on ground (brief double-support OK)
+        # 8. REWARD double support during transition (weight shifting!)
+        # This encourages the robot to TRY switching
         both_on_ground = right_contact and left_contact
         if both_on_ground:
-            reward -= 0.1
+            # If we've been on same leg for a while, reward double support
+            # (it means robot is trying to transition!)
+            if self.steps_on_same_leg > 5:
+                reward += 0.3  # Reward for attempting transition
+            else:
+                reward -= 0.05  # Small penalty if just standing
 
         # 9. Switch frequency reward (consistent alternation)
         if self.step_count > 0:
