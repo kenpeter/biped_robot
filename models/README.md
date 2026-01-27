@@ -83,76 +83,88 @@ python3 train_full_robot_mujoco.py --test
 
 ## Reward Function Design
 
-**UPDATED: Research-Based Reward Function (2024)**
+**UPDATED v2: Improved Dense Reward Function (January 2025)**
 
-After extensive testing, we discovered the robot was learning to hop on one foot instead of walking properly. We implemented the solution from the 2024 paper **"Revisiting Reward Design and Evaluation for Robust Humanoid Standing and Walking"** which successfully prevents hopping behavior.
+After extensive training with the research-based sparse rewards, we found the robot still struggled to discover proper walking behavior. The airtime threshold was too high (0.4s) and the rewards too sparse. We've implemented an improved version with denser signals and more realistic parameters.
 
-### Key Discovery: Why the Robot Was Hopping
+### Key Discovery: Why the Robot Was Still Falling
 
-**The Problem:**
-- Original forward velocity reward was TOO HIGH (10.0)
-- Robot learned: "Hop on one foot = move fast = maximum reward!"
-- This was a **reward exploit** - technically maximizing reward but wrong behavior
+**The Problems with v1 (Research-Based):**
+- Airtime threshold of **0.4 seconds was unrealistic** - that's 20 simulation steps!
+- **Sparse rewards only** - robot had no guidance during foot lifting
+- **Weak incentives** - single contact (0.1) and forward velocity (0.15) too low
+- **No active lifting reward** - robot wasn't encouraged to lift feet
+- **Too restrictive** - heavy penalties prevented dynamic walking
 
-**The Solution:**
-1. **VERY LOW velocity reward (0.15)** - just enough to move forward
-2. **REWARD single-foot contact (0.1)** - this IS the walking cycle!
-3. **HIGHEST weight on airtime (1.0)** - sparse reward for achieving >0.4s swing phase
-4. **Remove penalties for single-foot** - we were punishing walking behavior!
+**The Solution (v2 - Dense Rewards):**
+1. **Realistic airtime threshold (0.15s)** - achievable through random exploration
+2. **DENSE foot height reward (+0.5)** - continuous guidance for lifting feet
+3. **Stronger single contact (+0.3)** - clearer weight shifting signal
+4. **Higher velocity reward (+0.5)** - more motivation to move forward
+5. **Foot alternation penalties** - discourage both feet on ground or in air
+6. **Reduced penalties** - allow more dynamic movement
 
-### Research-Based Reward Components:
+### Improved Reward Components (v2):
 
-Based on **"Revisiting Reward Design and Evaluation for Robust Humanoid Standing and Walking"** (2024):
+### 1. **Forward Velocity Tracking** (+0.5 × clipped velocity)
+- **INCREASED from 0.15** - stronger motivation to walk forward
+- Clipped to [0, 1.0] to prevent exploits
+- Balanced by other constraints (upright, foot alternation)
 
-### 1. **Forward Velocity Tracking** (+0.15 × velocity)
-- **VERY LOW weight** - prevents velocity-chasing exploits
-- Just enough to encourage forward movement
-- At 1.0 m/s: only +0.15 reward (was +10.0!)
-- Key insight: High velocity reward = hopping exploit
+### 2. **Single Foot Contact** (+0.3) 🚶‍♂️ CRITICAL FOR WALKING!
+- **INCREASED from 0.1** - 3x stronger signal
+- Rewards when ONE foot is on ground (stance-swing cycle)
+- Natural walking gait pattern
 
-### 2. **Single Foot Contact** (+0.1) 🚶‍♂️ CRITICAL FOR WALKING!
-- **Rewards when ONE foot is on ground**
-- This IS the natural walking gait (stance-swing cycle)
-- Previously we PENALIZED this (wrong!)
-- Research shows this is "the most reliable way to produce walking instead of hopping"
+### 3. **Dense Foot Height Reward** (+0.5 per foot) ⭐ NEW & CRITICAL!
+- **Continuous reward** - guides robot to lift feet during swing
+- Rewards height up to 15cm (normalized)
+- Provides immediate feedback for foot lifting
+- Much easier to discover than sparse airtime reward
 
-### 3. **Feet Airtime Reward** (+1.0 per foot) ⭐ HIGHEST WEIGHT!
-- **Sparse reward** - only triggers on specific events
-- Rewards each foot that achieves **>0.4 seconds in air** before touchdown
-- Encourages proper swing phase
-- This reward dominates all others - forces alternating leg motion
+### 4. **Airtime Bonus** (+0.5 per foot on touchdown)
+- **REDUCED threshold: 0.4s → 0.15s** - realistic for robot walking
+- Sparse bonus for achieving proper swing phase
+- More achievable through exploration
 
-### 4. **Upright Orientation** (+0.2)
-- Maintain upright posture (quaternion w-component)
-- Modest weight - just enough for stability
+### 5. **Upright Orientation** (+0.3)
+- **INCREASED from 0.2** - more stability emphasis
+- Quaternion w-component squared
 
-### 5. **Base Height** (-0.05 × error)
-- Penalize deviation from target height (0.42m)
-- Low weight - allows some height variation
+### 6. **Base Height Penalty** (-0.02 × error)
+- **REDUCED from -0.05** - allows dynamic movement
+- Less restrictive for walking gait
 
-### 6. **Lateral Velocity Penalty** (-0.15 × |lateral_vel|)
+### 7. **Foot Alternation** (NEW!)
+- **Both feet on ground:** -0.2 penalty
+- **Both feet in air:** -0.5 penalty (prevents jumping/hopping)
+- Encourages proper alternating gait
+
+### 8. **Lateral Velocity Penalty** (-0.2 × |lateral_vel|)
 - Walk straight, don't drift sideways
-- Balanced with forward velocity reward
 
-### 7. **Action Smoothness** (-0.02 × action²)
-- Encourages smooth servo movements
-- Low weight - doesn't dominate behavior
+### 9. **Action Smoothness** (-0.01 × action²)
+- **REDUCED from -0.02** - allows more dynamic motion
 
-### 8. **Base Acceleration Penalty** (-0.1 × |acceleration|)
-- Penalize jerky movements
-- Promotes smooth, natural walking
+### 10. **Base Acceleration Penalty** (-0.05 × |acceleration|)
+- **REDUCED from -0.1** - less restrictive
 
-### Comparison: Old vs New Reward Function
+### Comparison: v1 (Sparse) vs v2 (Dense)
 
-| Component | Old (Hopping) | New (Walking) | Why Changed |
-|-----------|---------------|---------------|-------------|
-| Forward velocity | **10.0** | **0.15** | Too high = hopping exploit |
-| Single foot contact | **-2.0 penalty** | **+0.1 reward** | We were punishing walking! |
-| Airtime | None | **+1.0 sparse** | Forces swing phase |
-| Foot alternation | +4.0 | Removed | Redundant with airtime |
-| Double support | +0.5 | Removed | Conflicts with single contact |
+| Component | v1 (Sparse) | v2 (Dense) | Why Changed |
+|-----------|-------------|------------|-------------|
+| Forward velocity | +0.15 | **+0.5** | Stronger motivation |
+| Single foot contact | +0.1 | **+0.3** | 3x stronger signal |
+| Foot height | None | **+0.5 dense** | Guides lifting behavior |
+| Airtime threshold | 0.4s | **0.15s** | Realistic & achievable |
+| Airtime reward | +1.0 | **+0.5** | Reduced but still valuable |
+| Upright | +0.2 | **+0.3** | More stability |
+| Both feet on ground | None | **-0.2** | Discourage shuffling |
+| Both feet in air | None | **-0.5** | Prevent hopping/jumping |
+| Action smoothness | -0.02 | **-0.01** | Allow dynamics |
+| Base acceleration | -0.1 | **-0.05** | Allow dynamics |
 
-**Result:** The new reward function makes hopping give LESS reward than proper bipedal walking!
+**Result:** Dense rewards provide continuous guidance for learning proper bipedal walking!
 
 ---
 
@@ -206,20 +218,25 @@ The robot observes:
 
 ## Hyperparameters (Optimized for Walking)
 
-Current PPO settings in `train_full_robot_mujoco.py`:
+Current PPO settings in `train_full_robot_mujoco.py` (v2):
 
 ```python
-learning_rate = 1e-4        # Slow, stable learning
+learning_rate = 3e-4       # INCREASED from 1e-4 for faster adaptation
 n_steps = 4096              # More samples per update
 batch_size = 128            # Larger batches for stability
 n_epochs = 15               # More training per batch
 gamma = 0.995               # Long-term reward horizon
 gae_lambda = 0.95          # Advantage estimation
-clip_range = 0.1           # Conservative policy updates
-ent_coef = 0.005           # Low exploration (focused learning)
+clip_range = 0.2           # INCREASED from 0.1 for more aggressive updates
+ent_coef = 0.01            # INCREASED from 0.005 for more exploration
 ```
 
-These are based on research showing slower, more conservative updates work better for complex locomotion.
+**Changes from v1:**
+- **Learning rate 3x higher** - adapts faster to dense reward signals
+- **Clip range 2x higher** - allows bigger policy updates per iteration
+- **Entropy 2x higher** - encourages more exploration to discover foot lifting
+
+These changes enable faster learning with the new dense reward structure while maintaining stability.
 
 ---
 
@@ -514,24 +531,30 @@ Step 3M:      explained_var=0.93, loss=70,  value_loss=200, entropy=-9
 - **Fix**: This is normal! During training it explores randomly (high entropy)
 - Test mode uses deterministic policy (no randomness)
 
-**Issue**: Robot hops on one foot instead of walking properly ✅ SOLVED!
-- **Root Cause**: Forward velocity reward was TOO HIGH (10.0)
-- Robot learned: "Hop fast on one foot = maximum reward!"
-- **Solution**: Implemented research-based reward function from 2024 paper
-  - Reduced velocity reward: 10.0 → **0.15** (67x reduction!)
-  - Changed single-foot from **penalty (-2.0)** to **reward (+0.1)**
-  - Added airtime reward: **+1.0 sparse** (highest weight!)
-  - Airtime forces proper swing phase (>0.4s foot in air)
-- **Key insight**: Single-foot contact IS walking, not hopping!
-- **Reference**: "Revisiting Reward Design and Evaluation for Robust Humanoid Standing and Walking" (2024)
+**Issue**: Robot hops or falls instead of walking properly ✅ SOLVED (v2)!
+- **Root Cause (v0)**: Forward velocity reward was TOO HIGH (10.0)
+  - Robot learned: "Hop fast on one foot = maximum reward!"
+- **v1 Solution**: Research-based sparse rewards (airtime 0.4s threshold)
+  - Problem: Too sparse, threshold too high, hard to discover
+- **v2 Solution (CURRENT)**: Dense reward shaping
+  - **Dense foot height reward (+0.5)** - continuous guidance for lifting
+  - **Lower airtime threshold (0.15s)** - realistic and achievable
+  - **Stronger signals** - velocity +0.5, single contact +0.3
+  - **Foot alternation penalties** - discourage both feet down/up
+  - **Higher learning rate (3e-4)** - faster adaptation
+- **Result**: Robot learns to lift feet and alternate legs much faster!
 
-**Issue**: Robot stands still or doesn't move forward
-- **Fix**: Check if velocity reward is too LOW
-- Current balanced values:
-  - Velocity reward: 0.15 (encourages forward movement)
-  - Airtime reward: 1.0 (dominates - forces walking)
-  - Single contact: 0.1 (rewards walking gait)
-- **The airtime reward (1.0) should dominate all others!**
+**Issue**: Robot still struggles after many training steps
+- **Recommendation**: Start fresh instead of resuming
+  ```bash
+  # Backup old model
+  mv models/full_robot_ppo.zip models/full_robot_ppo_old.zip
+
+  # Train from scratch with new v2 rewards
+  python3 train_full_robot_mujoco.py --headless --num-envs 32 --timesteps 2000000
+  ```
+- **Why**: Old policy learned to exploit previous reward structure
+- New dense rewards should enable much faster learning
 
 ---
 

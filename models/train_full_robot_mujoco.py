@@ -204,10 +204,13 @@ class HumanoidEnv(gym.Env):
         return obs, reward, terminated, truncated, {}
 
     def _get_reward(self, action):
-        """Calculate reward - RESEARCH-BASED (2024 state-of-the-art).
+        """Calculate reward - IMPROVED for stable bipedal walking.
 
-        Based on "Revisiting Reward Design and Evaluation for Robust Humanoid
-        Standing and Walking" which successfully prevents hopping behavior.
+        Key changes from previous version:
+        - Lower airtime threshold (0.15s vs 0.4s) for realistic walking
+        - Dense foot height reward to encourage active lifting
+        - Higher single contact reward for better weight shifting
+        - Stronger forward velocity incentive
         """
         reward = 0.0
 
@@ -216,7 +219,7 @@ class HumanoidEnv(gym.Env):
         forward_vel = self.mj_data.qvel[0]
         lateral_vel = self.mj_data.qvel[1]
 
-        # Get foot contacts
+        # Get foot contacts and heights
         right_foot_z = self.mj_data.xpos[self._get_body_id("right_foot")][2]
         left_foot_z = self.mj_data.xpos[self._get_body_id("left_foot")][2]
         right_contact = right_foot_z < 0.05
@@ -234,43 +237,62 @@ class HumanoidEnv(gym.Env):
         else:
             self.left_foot_airtime = 0.0
 
-        # 1. Forward velocity tracking (weight: 0.15) - LOW to prevent exploits
-        reward += 0.15 * forward_vel
+        # 1. Forward velocity tracking (weight: 0.5) - INCREASED for stronger incentive
+        reward += 0.5 * np.clip(forward_vel, 0, 1.0)  # Clip to prevent exploits
 
-        # 2. Lateral velocity penalty (weight: 0.15) - walk straight
-        reward -= 0.15 * abs(lateral_vel)
+        # 2. Lateral velocity penalty (weight: 0.2) - walk straight
+        reward -= 0.2 * abs(lateral_vel)
 
-        # 3. Upright orientation (weight: 0.2 for roll/pitch)
-        # Penalize deviation from upright
+        # 3. Upright orientation (weight: 0.3) - INCREASED importance
         upright = torso_quat[0] ** 2  # w component, 1 when upright
-        reward += 0.2 * upright
+        reward += 0.3 * upright
 
-        # 4. Base height (weight: 0.05) - maintain standing height
+        # 4. Base height penalty (weight: 0.02) - REDUCED to allow dynamic movement
         height_error = abs(torso_z - 0.42)
-        reward -= 0.05 * height_error
+        reward -= 0.02 * height_error
 
-        # 5. SINGLE FOOT CONTACT - KEY FOR WALKING! (weight: 0.1)
+        # 5. SINGLE FOOT CONTACT - KEY FOR WALKING! (weight: 0.3) - INCREASED
         # Reward when exactly ONE foot is on ground (stance-swing cycle)
         single_contact = (right_contact and not left_contact) or (left_contact and not right_contact)
         if single_contact:
-            reward += 0.1
+            reward += 0.3
 
-        # 6. FEET AIRTIME - HIGHEST WEIGHT! (weight: 1.0 sparse)
-        # Reward each foot that achieves >0.4 second airtime before touchdown
-        airtime_threshold = 0.4
+        # 6. DENSE FOOT HEIGHT REWARD - NEW! (weight: 0.5)
+        # Reward for actively lifting feet off the ground during swing phase
+        if not right_contact:
+            foot_lift_reward = np.clip(right_foot_z / 0.15, 0, 1.0)  # Max reward at 15cm
+            reward += 0.5 * foot_lift_reward
+
+        if not left_contact:
+            foot_lift_reward = np.clip(left_foot_z / 0.15, 0, 1.0)  # Max reward at 15cm
+            reward += 0.5 * foot_lift_reward
+
+        # 7. AIRTIME BONUS - REDUCED THRESHOLD (weight: 0.5 sparse)
+        # Reward each foot that achieves >0.15 second airtime before touchdown
+        # This is more realistic for robot walking (was 0.4s, now 0.15s)
+        airtime_threshold = 0.15
         if right_contact and self.right_foot_airtime >= airtime_threshold:
-            reward += 1.0  # Sparse reward on touchdown after long airtime
+            reward += 0.5  # Bonus on touchdown after sufficient airtime
 
         if left_contact and self.left_foot_airtime >= airtime_threshold:
-            reward += 1.0  # Sparse reward on touchdown after long airtime
+            reward += 0.5  # Bonus on touchdown after sufficient airtime
 
-        # 7. Action smoothness (weight: 0.02)
+        # 8. FOOT ALTERNATION - NEW! (weight: 0.2)
+        # Encourage switching which foot is in swing phase
+        both_on_ground = right_contact and left_contact
+        both_in_air = not right_contact and not left_contact
+        if both_on_ground:
+            reward -= 0.2  # Penalize both feet on ground (except briefly)
+        if both_in_air:
+            reward -= 0.5  # Strongly penalize both feet in air (falling/jumping)
+
+        # 9. Action smoothness (weight: 0.01) - REDUCED to allow more dynamic motion
         ctrl_cost = np.sum(np.square(action))
-        reward -= 0.02 * ctrl_cost
+        reward -= 0.01 * ctrl_cost
 
-        # 8. Base acceleration penalty (weight: 0.1) - smooth movement
+        # 10. Base acceleration penalty (weight: 0.05) - REDUCED for dynamic walking
         base_acc = np.linalg.norm(self.mj_data.qacc[0:3])
-        reward -= 0.1 * base_acc
+        reward -= 0.05 * base_acc
 
         return reward
 
@@ -354,19 +376,22 @@ def train(resume=False, total_timesteps=1_000_000, headless=False, num_envs=1):
     if resume and os.path.exists(POLICY_PATH):
         print(f"[LOAD] Loading {POLICY_PATH}")
         model = PPO.load(POLICY_PATH, env=env)
+        # Update learning rate when resuming (helps adapt to new reward structure)
+        model.learning_rate = 3e-4
+        print(f"[INFO] Adjusted learning rate to {model.learning_rate} for continued training")
     else:
         print("[NEW] Creating new PPO model...")
         model = PPO(
             "MlpPolicy",
             env,
-            learning_rate=1e-4,  # Slower learning for stable convergence
+            learning_rate=3e-4,  # Increased from 1e-4 for faster initial learning
             n_steps=4096,         # More steps for better statistics
             batch_size=128,       # Larger batch for stability
             n_epochs=15,         # More epochs per update
             gamma=0.995,          # Longer horizon for slow movements
             gae_lambda=0.95,
-            clip_range=0.1,      # Smaller clip for conservative updates
-            ent_coef=0.005,      # Less exploration once learning
+            clip_range=0.2,      # Increased from 0.1 for more aggressive updates
+            ent_coef=0.01,       # Increased exploration to discover foot lifting
             verbose=1,
             tensorboard_log=LOG_PATH
         )
