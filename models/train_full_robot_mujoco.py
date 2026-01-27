@@ -216,131 +216,60 @@ class HumanoidEnv(gym.Env):
         return obs, reward, terminated, truncated, {}
 
     def _get_reward(self, action):
-        """Calculate reward - v4 HYBRID (Our v3 + Isaac Lab techniques).
+        """Calculate reward - v6 MINIMAL (Let robot discover walking naturally).
 
-        Combines the best of both approaches:
-        - Our v3: Stance switching tracking with huge bonus
-        - Isaac Lab: Single-stance requirement + foot slide penalty
-        - Result: Walking is rewarded, hopping/shuffling is penalized
+        INSIGHT: We were OVERTHINKING it. All the complex penalties prevented
+        the robot from even learning basics. This version uses ONLY positive rewards
+        and lets the robot discover walking through natural exploration.
 
-        Based on NVIDIA Isaac Lab H1 humanoid implementation.
+        Based on the principle: "Reward what you want, ignore what you don't."
         """
         reward = 0.0
 
         torso_z = self.mj_data.qpos[2]
         torso_quat = self.mj_data.qpos[3:7]
         forward_vel = self.mj_data.qvel[0]
-        lateral_vel = self.mj_data.qvel[1]
 
-        # Get foot contacts and heights
+        # Get foot contacts
         right_foot_z = self.mj_data.xpos[self._get_body_id("right_foot")][2]
         left_foot_z = self.mj_data.xpos[self._get_body_id("left_foot")][2]
         right_contact = right_foot_z < 0.05
         left_contact = left_foot_z < 0.05
 
-        # Isaac Lab: Single-stance check (CRITICAL - prevents hopping!)
-        # Only ONE foot should be on ground during proper walking
+        # Track stance leg for switching detection
         single_stance = (right_contact and not left_contact) or (left_contact and not right_contact)
-
-        # Our v3: Track stance leg changes
         if single_stance:
             current_stance = 'right' if right_contact else 'left'
-
             if self.stance_leg is None:
-                # First time establishing stance
                 self.stance_leg = current_stance
                 self.steps_on_same_leg = 0
             elif self.stance_leg != current_stance:
-                # ⭐ STANCE LEG SWITCHED! This is walking!
-                reward += 2.0  # HUGE REWARD - the key signal
+                # FOOT SWITCHED! Big reward!
+                reward += 5.0  # HUGE - this is what we want!
                 self.stance_leg = current_stance
                 self.total_foot_switches += 1
-                self.last_switch_step = self.step_count
                 self.steps_on_same_leg = 0
             else:
-                # Same stance leg, increment counter
                 self.steps_on_same_leg += 1
 
-        # Our v3: PENALTY for staying on same foot too long (hopping!)
-        # INCREASED: Penalty now starts earlier and grows faster
-        if self.steps_on_same_leg > 10:  # Start at 10 steps, not 20
-            penalty = (self.steps_on_same_leg - 10) * 0.2  # 4x stronger: 0.2 instead of 0.05
-            reward -= min(penalty, 5.0)  # Higher cap: -5.0 instead of -2.0
+        # ========== ONLY 3 SIMPLE REWARDS ==========
 
-        # ========== PRIMARY OBJECTIVES (Isaac Lab style) ==========
+        # 1. Stay upright (weight: 2.0) - Most important!
+        upright = torso_quat[0] ** 2  # 1.0 when perfectly upright
+        reward += 2.0 * upright
 
-        # 1. Forward velocity tracking (weight: 0.5) - REDUCED to prevent leaning
-        # Isaac Lab uses 1.0 but their robot is more stable
-        reward += 0.5 * np.clip(forward_vel, 0, 1.0)
+        # 2. Move forward (weight: 1.0) - Secondary goal
+        reward += 1.0 * np.clip(forward_vel, 0, 1.0)
 
-        # 2. Lateral velocity penalty (walk straight)
-        reward -= 0.2 * abs(lateral_vel)
+        # 3. Maintain height (weight: 0.5) - Bonus for staying up
+        height_bonus = 1.0 - abs(torso_z - 0.42)  # Max 1.0 at perfect height
+        reward += 0.5 * np.clip(height_bonus, 0, 1.0)
 
-        # 3. Upright orientation (weight: 0.5) - Stay balanced
-        upright = torso_quat[0] ** 2  # w component squared
-        reward += 0.5 * upright
-
-        # 4. Base height maintenance
-        height_error = abs(torso_z - 0.42)
-        reward -= 0.02 * height_error
-
-        # ========== GAIT-SPECIFIC REWARDS (Only during single stance) ==========
-
-        # 5. Swing foot height (Isaac Lab: only reward during single stance)
-        if single_stance:
-            if self.stance_leg == 'right' and not left_contact:
-                swing_height = np.clip(left_foot_z / 0.15, 0, 1.0)
-                reward += 0.25 * swing_height  # Match Isaac Lab weight
-            elif self.stance_leg == 'left' and not right_contact:
-                swing_height = np.clip(right_foot_z / 0.15, 0, 1.0)
-                reward += 0.25 * swing_height
-
-        # 6. NEW from Isaac Lab: Foot slide penalty (CRITICAL!)
-        # Penalize foot moving during stance - stabilizes gait
-        right_foot_id = self._get_body_id("right_foot")
-        left_foot_id = self._get_body_id("left_foot")
-
-        if right_contact:
-            # Get foot velocity in world frame (only XY, not Z)
-            right_foot_vel = self.mj_data.cvel[right_foot_id, 0:2]  # Linear velocity XY
-            foot_slide = np.linalg.norm(right_foot_vel)
-            reward -= 0.25 * foot_slide  # Isaac Lab uses -0.25
-
-        if left_contact:
-            left_foot_vel = self.mj_data.cvel[left_foot_id, 0:2]  # Linear velocity XY
-            foot_slide = np.linalg.norm(left_foot_vel)
-            reward -= 0.25 * foot_slide
-
-        # ========== PENALTIES ==========
-
-        # 7. STRONG penalty for both feet in air (hopping/falling)
-        both_in_air = not right_contact and not left_contact
-        if both_in_air:
-            reward -= 1.0
-
-        # 8. REWARD double support during transition (weight shifting!)
-        # This encourages the robot to TRY switching
-        both_on_ground = right_contact and left_contact
-        if both_on_ground:
-            # If we've been on same leg for a while, reward double support
-            # (it means robot is trying to transition!)
-            if self.steps_on_same_leg > 5:
-                reward += 0.3  # Reward for attempting transition
-            else:
-                reward -= 0.05  # Small penalty if just standing
-
-        # 9. Switch frequency reward (consistent alternation)
-        if self.step_count > 0:
-            switch_rate = self.total_foot_switches / self.step_count
-            reward += 0.5 * switch_rate
-
-        # 10. Action smoothness (Isaac Lab: -0.005)
-        ctrl_cost = np.sum(np.square(action))
-        reward -= 0.005 * ctrl_cost
-
-        # 11. Base acceleration penalty (smooth movement)
-        base_acc = np.linalg.norm(self.mj_data.qacc[0:3])
-        reward -= 0.02 * base_acc
+        # That's it! No penalties, no complex gating.
+        # Robot will naturally discover:
+        # - Falling = lose upright reward
+        # - Hopping on one leg = unstable = fall eventually
+        # - Switching feet = get +5.0 bonus + stay up longer = WIN!
 
         return reward
 
