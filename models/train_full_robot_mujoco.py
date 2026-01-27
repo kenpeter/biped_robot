@@ -216,13 +216,14 @@ class HumanoidEnv(gym.Env):
         return obs, reward, terminated, truncated, {}
 
     def _get_reward(self, action):
-        """Calculate reward - v3 ANTI-HOPPING with explicit foot switching.
+        """Calculate reward - v4 HYBRID (Our v3 + Isaac Lab techniques).
 
-        THE CRITICAL INSIGHT: Hopping satisfies most rewards (forward movement,
-        single foot contact, foot lifting). The ONLY difference between hopping
-        and walking is: WALKING SWITCHES WHICH FOOT IS DOWN!
+        Combines the best of both approaches:
+        - Our v3: Stance switching tracking with huge bonus
+        - Isaac Lab: Single-stance requirement + foot slide penalty
+        - Result: Walking is rewarded, hopping/shuffling is penalized
 
-        This version makes foot switching the PRIMARY reward signal.
+        Based on NVIDIA Isaac Lab H1 humanoid implementation.
         """
         reward = 0.0
 
@@ -237,23 +238,21 @@ class HumanoidEnv(gym.Env):
         right_contact = right_foot_z < 0.05
         left_contact = left_foot_z < 0.05
 
-        # Determine current stance leg (which foot has primary contact)
-        current_stance = None
-        if right_contact and not left_contact:
-            current_stance = 'right'
-        elif left_contact and not right_contact:
-            current_stance = 'left'
-        # If both or neither, keep previous stance
+        # Isaac Lab: Single-stance check (CRITICAL - prevents hopping!)
+        # Only ONE foot should be on ground during proper walking
+        single_stance = (right_contact and not left_contact) or (left_contact and not right_contact)
 
-        # Track stance leg changes (THIS IS THE KEY!)
-        if current_stance is not None:
+        # Our v3: Track stance leg changes
+        if single_stance:
+            current_stance = 'right' if right_contact else 'left'
+
             if self.stance_leg is None:
                 # First time establishing stance
                 self.stance_leg = current_stance
                 self.steps_on_same_leg = 0
             elif self.stance_leg != current_stance:
-                # ⭐ STANCE LEG SWITCHED! This is walking, not hopping!
-                reward += 2.0  # HUGE REWARD - this is what we want!
+                # ⭐ STANCE LEG SWITCHED! This is walking!
+                reward += 2.0  # HUGE REWARD - the key signal
                 self.stance_leg = current_stance
                 self.total_foot_switches += 1
                 self.last_switch_step = self.step_count
@@ -262,54 +261,76 @@ class HumanoidEnv(gym.Env):
                 # Same stance leg, increment counter
                 self.steps_on_same_leg += 1
 
-        # PENALTY: Staying on same foot too long = hopping!
-        # After 20 steps (~1 second) on same leg, start penalizing heavily
+        # Our v3: PENALTY for staying on same foot too long (hopping!)
         if self.steps_on_same_leg > 20:
             penalty = (self.steps_on_same_leg - 20) * 0.05
             reward -= min(penalty, 2.0)  # Cap at -2.0
 
-        # 1. Forward velocity (weight: 0.3) - REDUCED, not primary anymore
-        reward += 0.3 * np.clip(forward_vel, 0, 1.0)
+        # ========== PRIMARY OBJECTIVES (Isaac Lab style) ==========
 
-        # 2. Lateral velocity penalty
+        # 1. Forward velocity tracking (weight: 1.0) - Like Isaac Lab H1
+        reward += 1.0 * np.clip(forward_vel, 0, 1.0)
+
+        # 2. Lateral velocity penalty (walk straight)
         reward -= 0.2 * abs(lateral_vel)
 
-        # 3. Upright orientation (weight: 0.5) - INCREASED for stability
-        upright = torso_quat[0] ** 2
+        # 3. Upright orientation (weight: 0.5) - Stay balanced
+        upright = torso_quat[0] ** 2  # w component squared
         reward += 0.5 * upright
 
-        # 4. Base height
+        # 4. Base height maintenance
         height_error = abs(torso_z - 0.42)
         reward -= 0.02 * height_error
 
-        # 5. Reward swing foot being off ground (only the NON-stance foot)
-        if self.stance_leg == 'right' and not left_contact:
-            swing_height = np.clip(left_foot_z / 0.15, 0, 1.0)
-            reward += 0.3 * swing_height
-        elif self.stance_leg == 'left' and not right_contact:
-            swing_height = np.clip(right_foot_z / 0.15, 0, 1.0)
-            reward += 0.3 * swing_height
+        # ========== GAIT-SPECIFIC REWARDS (Only during single stance) ==========
 
-        # 6. STRONG penalty for both feet in air (falling/jumping)
+        # 5. Swing foot height (Isaac Lab: only reward during single stance)
+        if single_stance:
+            if self.stance_leg == 'right' and not left_contact:
+                swing_height = np.clip(left_foot_z / 0.15, 0, 1.0)
+                reward += 0.25 * swing_height  # Match Isaac Lab weight
+            elif self.stance_leg == 'left' and not right_contact:
+                swing_height = np.clip(right_foot_z / 0.15, 0, 1.0)
+                reward += 0.25 * swing_height
+
+        # 6. NEW from Isaac Lab: Foot slide penalty (CRITICAL!)
+        # Penalize foot moving during stance - stabilizes gait
+        right_foot_id = self._get_body_id("right_foot")
+        left_foot_id = self._get_body_id("left_foot")
+
+        if right_contact:
+            # Get foot velocity in world frame (only XY, not Z)
+            right_foot_vel = self.mj_data.cvel[right_foot_id, 0:2]  # Linear velocity XY
+            foot_slide = np.linalg.norm(right_foot_vel)
+            reward -= 0.25 * foot_slide  # Isaac Lab uses -0.25
+
+        if left_contact:
+            left_foot_vel = self.mj_data.cvel[left_foot_id, 0:2]  # Linear velocity XY
+            foot_slide = np.linalg.norm(left_foot_vel)
+            reward -= 0.25 * foot_slide
+
+        # ========== PENALTIES ==========
+
+        # 7. STRONG penalty for both feet in air (hopping/falling)
         both_in_air = not right_contact and not left_contact
         if both_in_air:
             reward -= 1.0
 
-        # 7. Small penalty for both feet on ground (brief during walking is OK)
+        # 8. Small penalty for both feet on ground (brief double-support OK)
         both_on_ground = right_contact and left_contact
         if both_on_ground:
             reward -= 0.1
 
-        # 8. Reward frequency of switches (encourage consistent alternation)
+        # 9. Switch frequency reward (consistent alternation)
         if self.step_count > 0:
             switch_rate = self.total_foot_switches / self.step_count
-            reward += 0.5 * switch_rate  # Reward ~0.01-0.02 switches per step
+            reward += 0.5 * switch_rate
 
-        # 9. Action smoothness
+        # 10. Action smoothness (Isaac Lab: -0.005)
         ctrl_cost = np.sum(np.square(action))
         reward -= 0.005 * ctrl_cost
 
-        # 10. Base acceleration penalty
+        # 11. Base acceleration penalty (smooth movement)
         base_acc = np.linalg.norm(self.mj_data.qacc[0:3])
         reward -= 0.02 * base_acc
 

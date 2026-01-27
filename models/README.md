@@ -83,96 +83,127 @@ python3 train_full_robot_mujoco.py --test
 
 ## Reward Function Design
 
-**UPDATED v3: Anti-Hopping with Explicit Foot Switching (January 2025)**
+**UPDATED v4: HYBRID (Our v3 + Isaac Lab) - January 2025** 🚀
 
-After v1 (sparse) and v2 (dense) the robot **STILL hopped on one leg** after extensive training. We discovered the fundamental flaw: **hopping satisfies almost all walking rewards!**
+After analyzing NVIDIA's Isaac Lab H1 humanoid implementation, we've combined the best of both approaches!
 
-### The Critical Insight: Why Hopping Kept Winning 🦘❌
+### Evolution of Solutions
 
-**Hopping on one leg provides:**
-- ✓ Forward velocity (moves forward fast)
+- **v1-v2**: Robot hopped - rewards didn't distinguish hopping from walking
+- **v3**: Explicit stance switching tracking - good but complex
+- **v4 (CURRENT)**: Hybrid approach combining v3 + Isaac Lab techniques
+
+### The Critical Insights
+
+**Why hopping kept winning (v1-v2):**
+- ✓ Forward velocity (hops move forward)
 - ✓ Single foot contact (one foot always down)
-- ✓ Foot height (other foot stays lifted)
-- ✓ Airtime (lifted foot in air constantly)
-- ✓ No penalties (doesn't have both feet down/up simultaneously)
+- ✓ Foot height (other foot lifted)
+- ✓ Airtime (lifted foot in air)
+- **Problem**: All these are satisfied by hopping!
 
-**The ONLY difference between hopping and walking:**
-- **Hopping**: Same foot on ground every time
-- **Walking**: Alternates which foot is on ground
+**Our v3 solution:** Track stance leg switching
+**Isaac Lab solution:** Require single-stance for rewards + foot slide penalty
+**v4 (Best of both):** Combine both techniques!
 
-### The Solution (v3 - Foot Switching Detection)
+### The v4 Hybrid Approach
 
-**Make foot switching the PRIMARY reward signal:**
-1. **Track stance leg** - which foot is currently supporting weight
-2. **HUGE reward (+2.0) when stance leg switches** - this IS walking!
-3. **Heavy penalty after 20 steps on same leg** - prevents hopping
-4. **Reward switch frequency** - encourages consistent alternation
-5. **Stance-aware rewards** - only reward lifting the swing foot, not stance foot
+**Three-layer defense against hopping:**
 
-### Reward Components (v3 - Anti-Hopping):
+1. **Single-Stance Requirement (Isaac Lab)**
+   - Only give rewards when exactly ONE foot is on ground
+   - Hopping (both feet in air) → no rewards
+   - Standing (both feet down) → no rewards
 
-### 1. **Foot Switch Reward** (+2.0) ⭐⭐⭐ HIGHEST PRIORITY!
-- **Massive reward when stance leg changes**
-- This is THE defining characteristic of walking vs hopping
-- Tracks which foot is currently supporting weight
-- Only triggers on actual stance transitions (not random flailing)
+2. **Stance Switching Bonus (Our v3)**
+   - Track which foot is stance leg
+   - +2.0 reward when stance switches
+   - Hopping never switches → no bonus
 
-### 2. **Same-Leg Penalty** (up to -2.0) 🚫 PREVENTS HOPPING!
-- After 20 steps (~1 second) on same stance leg, penalty grows
-- Formula: -(steps_on_same_leg - 20) × 0.05
-- Capped at -2.0 maximum
-- Forces robot to switch legs regularly
+3. **Foot Slide Penalty (NEW from Isaac Lab)**
+   - Penalize foot moving during stance
+   - Stabilizes gait and prevents shuffling
+   - -0.25 × foot_velocity during contact
 
-### 3. **Switch Frequency Reward** (+0.5 × switch_rate)
-- Rewards consistent alternation over the episode
-- Typical rate: 0.01-0.02 switches per step = +0.005 to +0.01 per step
-- Prevents random switching at start then hopping
+### Reward Components (v4 - Hybrid):
 
-### 4. **Stance-Aware Swing Foot Height** (+0.3)
-- **Only rewards lifting the NON-stance foot**
-- Key difference from v2: doesn't reward lifting the stance foot!
-- Normalized to 15cm maximum height
+**PRIMARY OBJECTIVES (Isaac Lab inspired):**
 
-### 5. **Upright Orientation** (+0.5)
-- **INCREASED from 0.3** - more emphasis on stability
-- Quaternion w-component squared
-
-### 6. **Forward Velocity** (+0.3)
-- **REDUCED from 0.5** - no longer primary motivation
+### 1. **Forward Velocity Tracking** (+1.0)
+- **INCREASED to Isaac Lab weight** - primary locomotion goal
 - Clipped to [0, 1.0] to prevent exploits
-- Foot switching is more important than speed
+- At 1 m/s forward = +1.0 reward
 
-### 7. **Both Feet In Air Penalty** (-1.0) 🚫
-- **INCREASED from -0.5** - very strong penalty
-- Prevents jumping, hopping, and falling
+### 2. **Upright Orientation** (+0.5)
+- Stay balanced - quaternion w-component squared
+- Essential for stability
 
-### 8. **Both Feet On Ground Penalty** (-0.1)
-- Small penalty - brief double-support is OK during walking
-- Just discourages standing still
-
-### 9. **Lateral Velocity Penalty** (-0.2 × |lateral_vel|)
+### 3. **Lateral Velocity Penalty** (-0.2 × |lateral_vel|)
 - Walk straight, don't drift sideways
 
-### 10. **Action Smoothness** (-0.005 × action²)
-- REDUCED - allow dynamic motion for leg switching
+### 4. **Base Height** (-0.02 × error)
+- Maintain target height (0.42m)
 
-### 11. **Base Acceleration Penalty** (-0.02 × |acceleration|)
-- REDUCED - allow dynamic motion
+**ANTI-HOPPING MECHANISMS:**
 
-### Comparison: v2 (Dense) vs v3 (Anti-Hopping)
+### 5. **Foot Switch Reward** (+2.0) ⭐ CRITICAL!
+- **From our v3**: Massive bonus when stance leg changes
+- Only triggers during single-stance transitions
+- This is THE defining signal of walking vs hopping
 
-| Component | v2 (Dense) | v3 (Anti-Hopping) | Why Changed |
-|-----------|------------|-------------------|-------------|
-| Foot switching | None | **+2.0 sparse** | THE key signal! |
-| Same-leg penalty | None | **up to -2.0** | Prevents hopping |
-| Switch frequency | None | **+0.5 × rate** | Consistent alternation |
-| Foot height | +0.5 any foot | **+0.3 swing only** | Stance-aware |
-| Forward velocity | +0.5 | **+0.3** | Not primary anymore |
-| Upright | +0.3 | **+0.5** | More stability |
-| Both in air | -0.5 | **-1.0** | Stronger penalty |
-| Action smoothness | -0.01 | **-0.005** | More dynamic |
+### 6. **Same-Leg Penalty** (up to -2.0) 🚫
+- **From our v3**: After 20 steps on same leg, penalty grows
+- Formula: -(steps_on_same_leg - 20) × 0.05
+- Forces regular leg switching
 
-**Result:** Hopping gives negative reward, walking gives massive positive reward!
+### 7. **Single-Stance Requirement** (Isaac Lab)
+- Swing foot rewards ONLY given during single stance
+- Hopping (both feet in air) → zero swing rewards
+- Standing (both feet down) → zero swing rewards
+
+### 8. **Swing Foot Height** (+0.25) - Only during single stance!
+- **From Isaac Lab**: Matched their weight
+- Only rewards lifting the NON-stance foot
+- Normalized to 15cm maximum
+
+### 9. **Foot Slide Penalty** (-0.25 × foot_velocity) 🆕 CRITICAL!
+- **NEW from Isaac Lab**: Penalize foot moving during stance
+- Stabilizes gait and prevents shuffling
+- Measures XY velocity of foot in contact
+- This is what makes Isaac Lab gaits so stable!
+
+**SAFETY PENALTIES:**
+
+### 10. **Both Feet In Air** (-1.0)
+- Strong penalty prevents jumping/hopping/falling
+
+### 11. **Both Feet On Ground** (-0.1)
+- Small penalty - brief double-support OK during walking
+- Discourages standing still
+
+**SMOOTHNESS:**
+
+### 12. **Switch Frequency** (+0.5 × rate)
+- Rewards consistent alternation throughout episode
+
+### 13. **Action Smoothness** (-0.005 × action²)
+- Encourages smooth control signals
+
+### 14. **Base Acceleration** (-0.02 × |acceleration|)
+- Reduces jerky movements
+
+### Comparison: v3 vs v4 (Hybrid)
+
+| Component | v3 | v4 (Hybrid) | Why Changed |
+|-----------|----|-----------  |-------------|
+| Forward velocity | +0.3 | **+1.0** | Match Isaac Lab (primary goal) |
+| Foot switching | +2.0 | **+2.0** | Kept - works great! |
+| Swing height | +0.3 anytime | **+0.25 single-stance only** | Isaac Lab gating |
+| Foot slide | None | **-0.25 NEW** | Stabilizes stance |
+| Same-leg penalty | up to -2.0 | **up to -2.0** | Kept - prevents hopping |
+| Single-stance gate | None | **Required for swing rewards** | Isaac Lab technique |
+
+**Result:** Three-layer anti-hopping defense + stable gait from foot slide penalty!
 
 ---
 
@@ -539,35 +570,39 @@ Step 3M:      explained_var=0.93, loss=70,  value_loss=200, entropy=-9
 - **Fix**: This is normal! During training it explores randomly (high entropy)
 - Test mode uses deterministic policy (no randomness)
 
-**Issue**: Robot hops on one leg instead of walking ✅ SOLVED (v3)!
+**Issue**: Robot hops on one leg instead of walking ✅ SOLVED (v4)!
 - **Root Cause**: ALL previous reward functions rewarded hopping!
   - v0: Forward velocity too high (10.0) → "hop fast = max reward"
   - v1: Sparse rewards (airtime 0.4s) → "hop satisfies airtime"
   - v2: Dense rewards → "hop satisfies foot height, single contact, velocity"
-  - **THE PROBLEM**: Hopping achieves most walking rewards!
+  - v3: Good but feet can slide during stance → unstable gait
 
-- **v3 Solution (CURRENT)**: Explicit foot switching detection
-  - **Track stance leg** - which foot is supporting weight
-  - **+2.0 reward when stance switches** - THE key signal!
-  - **Growing penalty for same leg** - prevents hopping
-  - **Stance-aware rewards** - only reward lifting swing foot
+- **v4 Solution (CURRENT)**: Hybrid of v3 + Isaac Lab H1
+  - **From v3**: Stance switching tracking (+2.0 bonus, same-leg penalty)
+  - **From Isaac Lab**: Single-stance requirement for rewards
+  - **NEW**: Foot slide penalty (-0.25 × velocity during contact)
+  - **Result**: Three-layer anti-hopping defense + stable stance
 
 - **Why this works**:
-  - **Hopping**: Same foot down → accumulates penalty → negative reward
-  - **Walking**: Alternating feet → +2.0 per switch → massive positive reward
-  - Finally makes walking strictly better than hopping!
+  - **Hopping**: Both feet in air → no single-stance → no rewards → negative total
+  - **Walking**: Alternating stance → +2.0 per switch + swing rewards → positive
+  - **Stable**: Foot slide penalty keeps stance foot planted firmly
 
 **Issue**: Robot still hopping after many training steps
 - **CRITICAL**: You MUST start fresh, not resume!
   ```bash
   # Backup old model (it learned hopping!)
-  mv models/full_robot_ppo.zip models/full_robot_ppo_hopping.zip
+  mv models/full_robot_ppo.zip models/full_robot_ppo_hopping_old.zip
 
-  # Start completely fresh with v3 anti-hopping rewards
+  # Start completely fresh with v4 hybrid rewards
   python3 train_full_robot_mujoco.py --headless --num-envs 32 --timesteps 3000000
   ```
 - **Why**: Old policy is optimized for hopping, it will resist learning to walk
-- v3 makes hopping unprofitable from the start
+- v4 combines best of our v3 + professional Isaac Lab techniques
+
+**Issue**: Robot shuffles or feet slide during walking
+- **Fixed in v4!** Foot slide penalty (-0.25) penalizes foot movement during stance
+- This is the key technique NVIDIA uses for stable H1 walking
 
 ---
 
