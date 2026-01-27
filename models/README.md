@@ -83,57 +83,76 @@ python3 train_full_robot_mujoco.py --test
 
 ## Reward Function Design
 
-The reward function is optimized for bipedal walking based on 2024-2025 research. Here's what the robot learns:
+**UPDATED: Research-Based Reward Function (2024)**
 
-### 1. **Alive Bonus** (+1.0)
-- Stay alive and keep training
-- Reduced from 2.0 to rebalance rewards
+After extensive testing, we discovered the robot was learning to hop on one foot instead of walking properly. We implemented the solution from the 2024 paper **"Revisiting Reward Design and Evaluation for Robust Humanoid Standing and Walking"** which successfully prevents hopping behavior.
 
-### 2. **Height Reward** (+2.0 max)
-- Encourages standing tall
-- Reduced from 5.0 - just enough to stand, not dominate
-- Penalty if too low (prevents crouching)
+### Key Discovery: Why the Robot Was Hopping
 
-### 3. **Upright Reward** (+1.5 max)
-- Critical for bipedal stability
-- Reduced from 3.0 - balanced with walking reward
-- Uses quaternion w-component to measure uprightness
+**The Problem:**
+- Original forward velocity reward was TOO HIGH (10.0)
+- Robot learned: "Hop on one foot = move fast = maximum reward!"
+- This was a **reward exploit** - technically maximizing reward but wrong behavior
 
-### 4. **Forward Velocity** (+3.0 × velocity) ⭐ MAIN OBJECTIVE
-- **Primary goal: walk forward!**
-- At 0.5 m/s: +1.5 reward
-- At 1.0 m/s: +3.0 reward
-- Reduced from 10.0 to prevent single-foot hopping exploit
+**The Solution:**
+1. **VERY LOW velocity reward (0.15)** - just enough to move forward
+2. **REWARD single-foot contact (0.1)** - this IS the walking cycle!
+3. **HIGHEST weight on airtime (1.0)** - sparse reward for achieving >0.4s swing phase
+4. **Remove penalties for single-foot** - we were punishing walking behavior!
 
-### 5. **Foot Alternation Reward** (+4.0 max) 🚶‍♂️ CRITICAL!
-- **Most important for proper walking!**
-- Rewards when one foot is on ground, other in air
-- Increased from 1.5 to 4.0 to strongly encourage bipedal gait
+### Research-Based Reward Components:
 
-### 6. **Anti-Hopping Penalty** (-2.0)
-- **NEW: Prevents single-foot jumping!**
-- Strong penalty when only one foot on ground
-- Forces robot to use both legs properly
+Based on **"Revisiting Reward Design and Evaluation for Robust Humanoid Standing and Walking"** (2024):
 
-### 7. **Double Support Reward** (+0.5)
-- **NEW: Encourages natural gait cycle!**
-- Small reward when both feet briefly touch ground
-- Normal during stance phase of walking
+### 1. **Forward Velocity Tracking** (+0.15 × velocity)
+- **VERY LOW weight** - prevents velocity-chasing exploits
+- Just enough to encourage forward movement
+- At 1.0 m/s: only +0.15 reward (was +10.0!)
+- Key insight: High velocity reward = hopping exploit
 
-### 8. **Leg Symmetry Reward** (+0.5 max)
-- Prevents limping
-- Encourages symmetric left/right leg movements
-- Measures hip and knee joint similarity
+### 2. **Single Foot Contact** (+0.1) 🚶‍♂️ CRITICAL FOR WALKING!
+- **Rewards when ONE foot is on ground**
+- This IS the natural walking gait (stance-swing cycle)
+- Previously we PENALIZED this (wrong!)
+- Research shows this is "the most reliable way to produce walking instead of hopping"
 
-### 9. **Energy Penalty** (-0.3 × action²)
-- Encourages smooth, efficient movements
-- Important for slow servo constraints
+### 3. **Feet Airtime Reward** (+1.0 per foot) ⭐ HIGHEST WEIGHT!
+- **Sparse reward** - only triggers on specific events
+- Rewards each foot that achieves **>0.4 seconds in air** before touchdown
+- Encourages proper swing phase
+- This reward dominates all others - forces alternating leg motion
 
-### 10. **Lateral Drift Penalty** (-1.0 × |lateral_vel|)
+### 4. **Upright Orientation** (+0.2)
+- Maintain upright posture (quaternion w-component)
+- Modest weight - just enough for stability
+
+### 5. **Base Height** (-0.05 × error)
+- Penalize deviation from target height (0.42m)
+- Low weight - allows some height variation
+
+### 6. **Lateral Velocity Penalty** (-0.15 × |lateral_vel|)
 - Walk straight, don't drift sideways
+- Balanced with forward velocity reward
 
-### 11. **Rotation Penalty** (-0.8 × |angular_z|)
-- Don't spin around
+### 7. **Action Smoothness** (-0.02 × action²)
+- Encourages smooth servo movements
+- Low weight - doesn't dominate behavior
+
+### 8. **Base Acceleration Penalty** (-0.1 × |acceleration|)
+- Penalize jerky movements
+- Promotes smooth, natural walking
+
+### Comparison: Old vs New Reward Function
+
+| Component | Old (Hopping) | New (Walking) | Why Changed |
+|-----------|---------------|---------------|-------------|
+| Forward velocity | **10.0** | **0.15** | Too high = hopping exploit |
+| Single foot contact | **-2.0 penalty** | **+0.1 reward** | We were punishing walking! |
+| Airtime | None | **+1.0 sparse** | Forces swing phase |
+| Foot alternation | +4.0 | Removed | Redundant with airtime |
+| Double support | +0.5 | Removed | Conflicts with single contact |
+
+**Result:** The new reward function makes hopping give LESS reward than proper bipedal walking!
 
 ---
 
@@ -495,23 +514,24 @@ Step 3M:      explained_var=0.93, loss=70,  value_loss=200, entropy=-9
 - **Fix**: This is normal! During training it explores randomly (high entropy)
 - Test mode uses deterministic policy (no randomness)
 
-**Issue**: Robot hops on one foot instead of walking properly
-- **Fix**: **Classic reward exploit!** The robot learned hopping maximizes forward velocity
-- Solution implemented:
-  - Reduced forward velocity reward: 10.0 → 3.0
-  - Increased foot alternation reward: 1.5 → 4.0
-  - Added -2.0 penalty for single-foot contact (hopping)
-  - Added +0.5 reward for double support (both feet down)
-- **Foot alternation must be stronger than velocity reward!**
+**Issue**: Robot hops on one foot instead of walking properly ✅ SOLVED!
+- **Root Cause**: Forward velocity reward was TOO HIGH (10.0)
+- Robot learned: "Hop fast on one foot = maximum reward!"
+- **Solution**: Implemented research-based reward function from 2024 paper
+  - Reduced velocity reward: 10.0 → **0.15** (67x reduction!)
+  - Changed single-foot from **penalty (-2.0)** to **reward (+0.1)**
+  - Added airtime reward: **+1.0 sparse** (highest weight!)
+  - Airtime forces proper swing phase (>0.4s foot in air)
+- **Key insight**: Single-foot contact IS walking, not hopping!
+- **Reference**: "Revisiting Reward Design and Evaluation for Robust Humanoid Standing and Walking" (2024)
 
-**Issue**: Robot stands still or falls instead of walking forward
-- **Fix**: **Reward balance problem!** Check that walking rewards are balanced
+**Issue**: Robot stands still or doesn't move forward
+- **Fix**: Check if velocity reward is too LOW
 - Current balanced values:
-  - Standing total: ~4.5 (alive=1.0, height=2.0, upright=1.5)
-  - Walking at 0.5 m/s: ~8.0 (forward=1.5, foot_alt=4.0, + standing)
-  - **Foot alternation (4.0) > velocity (3.0) = proper bipedal gait!**
-- If robot prefers standing: Increase `foot_alternation` reward
-- If robot falls too much: Increase `upright` reward (currently 1.5)
+  - Velocity reward: 0.15 (encourages forward movement)
+  - Airtime reward: 1.0 (dominates - forces walking)
+  - Single contact: 0.1 (rewards walking gait)
+- **The airtime reward (1.0) should dominate all others!**
 
 ---
 

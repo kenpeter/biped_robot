@@ -70,6 +70,12 @@ class HumanoidEnv(gym.Env):
         self.last_foot_contact = [0, 0]  # [right, left]
         self.gait_phase = 0.0
 
+        # Track airtime for feet (for airtime reward)
+        self.right_foot_airtime = 0.0
+        self.left_foot_airtime = 0.0
+        self.right_foot_last_contact_time = 0.0
+        self.left_foot_last_contact_time = 0.0
+
         # Action space: 17 actuators, range [-1, 1]
         self.n_actuators = 17
         self.action_space = spaces.Box(
@@ -130,6 +136,11 @@ class HumanoidEnv(gym.Env):
         self.step_count = 0
         self.gait_phase = 0.0
         self.last_foot_contact = [0, 0]
+
+        # Reset airtime trackers
+        self.right_foot_airtime = 0.0
+        self.left_foot_airtime = 0.0
+
         return self._get_obs(), {}
 
     def _get_obs(self):
@@ -193,69 +204,73 @@ class HumanoidEnv(gym.Env):
         return obs, reward, terminated, truncated, {}
 
     def _get_reward(self, action):
-        """Calculate reward - optimized for bipedal walking."""
+        """Calculate reward - RESEARCH-BASED (2024 state-of-the-art).
+
+        Based on "Revisiting Reward Design and Evaluation for Robust Humanoid
+        Standing and Walking" which successfully prevents hopping behavior.
+        """
         reward = 0.0
 
         torso_z = self.mj_data.qpos[2]
         torso_quat = self.mj_data.qpos[3:7]
         forward_vel = self.mj_data.qvel[0]
+        lateral_vel = self.mj_data.qvel[1]
 
         # Get foot contacts
         right_foot_z = self.mj_data.xpos[self._get_body_id("right_foot")][2]
         left_foot_z = self.mj_data.xpos[self._get_body_id("left_foot")][2]
-        right_contact = 1.0 if right_foot_z < 0.05 else 0.0
-        left_contact = 1.0 if left_foot_z < 0.05 else 0.0
+        right_contact = right_foot_z < 0.05
+        left_contact = left_foot_z < 0.05
 
-        # 1. Alive bonus
-        reward += 1.0  # Reduced from 2.0
+        # Update airtime tracking
+        dt = self.dt * self.frame_skip
+        if not right_contact:
+            self.right_foot_airtime += dt
+        else:
+            self.right_foot_airtime = 0.0
 
-        # 2. Height reward (encourage standing tall)
-        height_reward = 2.0 * (torso_z - 0.25)  # Reduced from 5.0
-        reward += np.clip(height_reward, -2, 2)
+        if not left_contact:
+            self.left_foot_airtime += dt
+        else:
+            self.left_foot_airtime = 0.0
 
-        # 3. Upright reward (critical for bipedal walking)
+        # 1. Forward velocity tracking (weight: 0.15) - LOW to prevent exploits
+        reward += 0.15 * forward_vel
+
+        # 2. Lateral velocity penalty (weight: 0.15) - walk straight
+        reward -= 0.15 * abs(lateral_vel)
+
+        # 3. Upright orientation (weight: 0.2 for roll/pitch)
+        # Penalize deviation from upright
         upright = torso_quat[0] ** 2  # w component, 1 when upright
-        reward += 1.5 * upright  # Reduced from 3.0
+        reward += 0.2 * upright
 
-        # 4. Forward velocity - Reduced to prevent hopping exploit
-        reward += 3.0 * forward_vel  # Reduced from 10.0 to discourage single-foot hopping
+        # 4. Base height (weight: 0.05) - maintain standing height
+        height_error = abs(torso_z - 0.42)
+        reward -= 0.05 * height_error
 
-        # 5. Foot contact alternation reward (CRITICAL for proper walking)
-        # Reward when feet alternate (one on ground, one in air)
-        foot_alternation = abs(right_contact - left_contact)
-        reward += 4.0 * foot_alternation  # Increased from 1.5 to strongly encourage alternating gait
+        # 5. SINGLE FOOT CONTACT - KEY FOR WALKING! (weight: 0.1)
+        # Reward when exactly ONE foot is on ground (stance-swing cycle)
+        single_contact = (right_contact and not left_contact) or (left_contact and not right_contact)
+        if single_contact:
+            reward += 0.1
 
-        # 6. Penalty for single-foot hopping (NEW!)
-        # Penalize when only one foot is on ground (hopping behavior)
-        if (right_contact > 0.5 and left_contact < 0.5) or (left_contact > 0.5 and right_contact < 0.5):
-            reward -= 2.0  # Strong penalty for hopping on one foot
+        # 6. FEET AIRTIME - HIGHEST WEIGHT! (weight: 1.0 sparse)
+        # Reward each foot that achieves >0.4 second airtime before touchdown
+        airtime_threshold = 0.4
+        if right_contact and self.right_foot_airtime >= airtime_threshold:
+            reward += 1.0  # Sparse reward on touchdown after long airtime
 
-        # 7. Reward for double support phase (both feet down briefly)
-        # This encourages proper walking where both feet touch ground during stance
-        if right_contact > 0.5 and left_contact > 0.5:
-            reward += 0.5  # Small reward for double support (normal in walking)
+        if left_contact and self.left_foot_airtime >= airtime_threshold:
+            reward += 1.0  # Sparse reward on touchdown after long airtime
 
-        # 8. Foot symmetry reward (discourage limping)
-        # Get leg joint positions (hip pitch and knee for both legs)
-        r_hip_pitch = self.mj_data.qpos[7 + 8]  # right hip pitch
-        r_knee = self.mj_data.qpos[7 + 9]       # right knee
-        l_hip_pitch = self.mj_data.qpos[7 + 13] # left hip pitch (updated for 17 DOF)
-        l_knee = self.mj_data.qpos[7 + 14]      # left knee (updated for 17 DOF)
+        # 7. Action smoothness (weight: 0.02)
+        ctrl_cost = np.sum(np.square(action))
+        reward -= 0.02 * ctrl_cost
 
-        leg_symmetry = -abs(r_hip_pitch + l_hip_pitch) - abs(r_knee + l_knee)
-        reward += 0.5 * leg_symmetry
-
-        # 9. Energy penalty - smooth movements
-        ctrl_cost = 0.3 * np.sum(np.square(action))
-        reward -= ctrl_cost
-
-        # 10. Lateral drift penalty - walk straight
-        lateral_vel = abs(self.mj_data.qvel[1])
-        reward -= 1.0 * lateral_vel
-
-        # 11. Rotation penalty - don't spin
-        angular_z = abs(self.mj_data.qvel[5])
-        reward -= 0.8 * angular_z
+        # 8. Base acceleration penalty (weight: 0.1) - smooth movement
+        base_acc = np.linalg.norm(self.mj_data.qacc[0:3])
+        reward -= 0.1 * base_acc
 
         return reward
 
