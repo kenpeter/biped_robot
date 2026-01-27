@@ -2,16 +2,18 @@
 
 ## Overview
 
-This project trains a full 15-DOF humanoid robot to walk using **PPO (Proximal Policy Optimization)** reinforcement learning in MuJoCo physics simulation.
+This project trains a full 17-DOF humanoid robot to walk using **PPO (Proximal Policy Optimization)** reinforcement learning in MuJoCo physics simulation.
 
 ## Robot Structure
 
-### 15 Servo Channels (Continuous Rotation):
+### 17 Servo Channels (Continuous Rotation):
 - **Head (1 DOF)**: Channel 0 - left/right pan
 - **Right Arm (3 DOF)**: Channels 1, 2, 3 - shoulder pitch, shoulder roll, elbow
 - **Left Arm (3 DOF)**: Channels 12, 13, 14 - shoulder pitch, shoulder roll, elbow
-- **Right Leg (4 DOF)**: Channels 4, 5, 6, 7 - hip roll, hip pitch, knee, ankle roll
-- **Left Leg (4 DOF)**: Channels 15, 16, 17, 18 - hip roll, hip pitch, knee, ankle roll
+- **Right Leg (5 DOF)**: Channels 4, 5, 6, 7, 8 - hip roll, hip pitch, knee, ankle roll, ankle pitch
+- **Left Leg (5 DOF)**: Channels 15, 16, 17, 18, 19 - hip roll, hip pitch, knee, ankle roll, ankle pitch
+
+**NOTE**: Ankle pitch joints (8 & 19) added for proper bipedal walking. These enable forward push-off during walking, critical for natural gait.
 
 All servos use continuous rotation (speed + timing control), not position control.
 
@@ -36,17 +38,21 @@ python3 train_full_robot_mujoco.py --resume --headless
 
 **Train with PARALLEL ROBOTS (like Isaac Sim!) - MUCH FASTER! 🚀**:
 ```bash
-python3 train_full_robot_mujoco.py --headless --num-envs 8   # 8 robots in parallel (3-4x faster!)
-python3 train_full_robot_mujoco.py --headless --num-envs 16  # 16 robots (5-6x faster on big machines!)
-python3 train_full_robot_mujoco.py --resume --headless --num-envs 8
+python3 train_full_robot_mujoco.py --headless --num-envs 8   # 8 robots in parallel (3x faster!)
+python3 train_full_robot_mujoco.py --headless --num-envs 16  # 16 robots (3-4x faster!)
+python3 train_full_robot_mujoco.py --resume --headless --num-envs 8  # resume with 8 robots
 ```
 
-**Performance comparison**:
-- 1 robot: ~1,300 FPS
+**Performance comparison** (tested on RTX 4070 Ti + multi-core CPU):
+- 1 robot: ~1,300 FPS (baseline)
 - 8 robots: ~4,300 FPS (**3.3x faster!**)
-- 16 robots: ~6,500 FPS (**5x faster!** - requires powerful CPU)
+- 16 robots: ~4,500 FPS (**3.5x faster!** - good for powerful CPUs)
 
-**Note**: Number of robots should match your CPU cores for best performance. Rendering is disabled when using multiple robots.
+**Important notes**:
+- **No UI when using multiple robots** - Rendering is automatically disabled for speed
+- **CPU-based parallelization** - Each robot runs in a separate process
+- **Optimal performance**: Match `--num-envs` to your CPU core count
+- **GPU note**: MuJoCo MJX (GPU physics) conflicts with Stable-Baselines3 dependencies (NumPy version incompatibility). CPU parallelization provides excellent speedup without compatibility issues.
 
 **Test trained policy**:
 ```bash
@@ -81,43 +87,49 @@ The reward function is optimized for bipedal walking based on 2024-2025 research
 - Reduced from 3.0 - balanced with walking reward
 - Uses quaternion w-component to measure uprightness
 
-### 4. **Forward Velocity** (+10.0 × velocity) ⭐ MAIN OBJECTIVE
-- **Primary goal: walk forward fast!**
-- At 0.5 m/s: +5.0 reward
-- At 1.0 m/s: +10.0 reward (more than all standing rewards combined!)
-- This is THE dominant reward - robot must walk to succeed
+### 4. **Forward Velocity** (+3.0 × velocity) ⭐ MAIN OBJECTIVE
+- **Primary goal: walk forward!**
+- At 0.5 m/s: +1.5 reward
+- At 1.0 m/s: +3.0 reward
+- Reduced from 10.0 to prevent single-foot hopping exploit
 
-### 5. **Foot Alternation Reward** (+1.5 max)
-- **Key for walking gait**
+### 5. **Foot Alternation Reward** (+4.0 max) 🚶‍♂️ CRITICAL!
+- **Most important for proper walking!**
 - Rewards when one foot is on ground, other in air
-- Prevents shuffling with both feet down
+- Increased from 1.5 to 4.0 to strongly encourage bipedal gait
 
-### 6. **Leg Symmetry Reward** (+0.5 max)
+### 6. **Anti-Hopping Penalty** (-2.0)
+- **NEW: Prevents single-foot jumping!**
+- Strong penalty when only one foot on ground
+- Forces robot to use both legs properly
+
+### 7. **Double Support Reward** (+0.5)
+- **NEW: Encourages natural gait cycle!**
+- Small reward when both feet briefly touch ground
+- Normal during stance phase of walking
+
+### 8. **Leg Symmetry Reward** (+0.5 max)
 - Prevents limping
 - Encourages symmetric left/right leg movements
 - Measures hip and knee joint similarity
 
-### 7. **Energy Penalty** (-0.3 × action²)
+### 9. **Energy Penalty** (-0.3 × action²)
 - Encourages smooth, efficient movements
 - Important for slow servo constraints
 
-### 8. **Lateral Drift Penalty** (-1.0 × |lateral_vel|)
+### 10. **Lateral Drift Penalty** (-1.0 × |lateral_vel|)
 - Walk straight, don't drift sideways
 
-### 9. **Rotation Penalty** (-0.8 × |angular_z|)
+### 11. **Rotation Penalty** (-0.8 × |angular_z|)
 - Don't spin around
-
-### 10. **Foot Dragging Penalty** (-0.5)
-- Mild penalty when both feet on ground
-- Encourages lifting feet during walking
 
 ---
 
-## Observation Space (44 dimensions)
+## Observation Space (48 dimensions)
 
 The robot observes:
-- **Joint positions** (15): All servo angles
-- **Joint velocities** (15): Angular velocities
+- **Joint positions** (17): All servo angles
+- **Joint velocities** (17): Angular velocities
 - **Torso orientation** (4): Quaternion (w, x, y, z)
 - **Torso velocity** (6): Linear (x, y, z) + Angular (roll, pitch, yaw)
 - **Foot contacts** (2): Binary ground contact for each foot
@@ -471,14 +483,22 @@ Step 3M:      explained_var=0.93, loss=70,  value_loss=200, entropy=-9
 - **Fix**: This is normal! During training it explores randomly (high entropy)
 - Test mode uses deterministic policy (no randomness)
 
+**Issue**: Robot hops on one foot instead of walking properly
+- **Fix**: **Classic reward exploit!** The robot learned hopping maximizes forward velocity
+- Solution implemented:
+  - Reduced forward velocity reward: 10.0 → 3.0
+  - Increased foot alternation reward: 1.5 → 4.0
+  - Added -2.0 penalty for single-foot contact (hopping)
+  - Added +0.5 reward for double support (both feet down)
+- **Foot alternation must be stronger than velocity reward!**
+
 **Issue**: Robot stands still or falls instead of walking forward
-- **Fix**: **Reward balance problem!** Check that forward velocity reward dominates
-- Standing rewards (alive + height + upright) must be LESS than walking rewards
+- **Fix**: **Reward balance problem!** Check that walking rewards are balanced
 - Current balanced values:
   - Standing total: ~4.5 (alive=1.0, height=2.0, upright=1.5)
-  - Walking at 0.5 m/s: ~10.9 (forward=5.0, foot_alt=1.5, + standing)
-  - **Walking must give 2-3x more reward than standing!**
-- If robot prefers standing: Increase `forward_vel` reward (currently 10.0)
+  - Walking at 0.5 m/s: ~8.0 (forward=1.5, foot_alt=4.0, + standing)
+  - **Foot alternation (4.0) > velocity (3.0) = proper bipedal gait!**
+- If robot prefers standing: Increase `foot_alternation` reward
 - If robot falls too much: Increase `upright` reward (currently 1.5)
 
 ---

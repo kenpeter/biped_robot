@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Train full humanoid robot using MuJoCo + Stable Baselines3 PPO.
 
-All servos:
+All servos (17 DOF):
   - Head: 0 (left/right)
   - Right arm: 1 (shoulder), 2 (upper arm), 3 (forearm)
   - Left arm: 12 (shoulder), 13 (upper arm), 14 (forearm)
-  - Right leg: 4 (hip roll), 5 (hip pitch), 6 (knee), 7 (ankle)
-  - Left leg: 15 (hip roll), 16 (hip pitch), 17 (knee), 18 (ankle)
+  - Right leg: 4 (hip roll), 5 (hip pitch), 6 (knee), 7 (ankle roll), 8 (ankle pitch)
+  - Left leg: 15 (hip roll), 16 (hip pitch), 17 (knee), 18 (ankle roll), 19 (ankle pitch)
 
 Usage:
   python3 train_full_robot_mujoco.py              # train with PPO (shows UI)
@@ -69,8 +69,8 @@ class HumanoidEnv(gym.Env):
         self.last_foot_contact = [0, 0]  # [right, left]
         self.gait_phase = 0.0
 
-        # Action space: 15 actuators, range [-1, 1]
-        self.n_actuators = 15
+        # Action space: 17 actuators, range [-1, 1]
+        self.n_actuators = 17
         self.action_space = spaces.Box(
             low=-1.0, high=1.0,
             shape=(self.n_actuators,),
@@ -90,8 +90,8 @@ class HumanoidEnv(gym.Env):
 
     def _get_obs_dim(self):
         """Get observation dimension."""
-        # Joint pos (15) + joint vel (15) + torso quat (4) + torso vel (6) + foot contacts (2) + gait phase (2: sin, cos)
-        return 15 + 15 + 4 + 6 + 2 + 2
+        # Joint pos (17) + joint vel (17) + torso quat (4) + torso vel (6) + foot contacts (2) + gait phase (2: sin, cos)
+        return 17 + 17 + 4 + 6 + 2 + 2
 
     def _setup_init_pose(self):
         """Setup initial standing pose."""
@@ -100,12 +100,12 @@ class HumanoidEnv(gym.Env):
         self.init_qpos[3] = 1.0   # quaternion w
 
         # Bent knees for stability
-        # Joint order: head, r_arm(3), l_arm(3), r_leg(4), l_leg(4)
-        # r_hip_pitch=8, r_knee=9, l_hip_pitch=12, l_knee=13 (relative to qpos[7])
+        # Joint order: head(1), r_arm(3), l_arm(3), r_leg(5), l_leg(5) = 17 total
+        # r_hip_pitch=8, r_knee=9, l_hip_pitch=13, l_knee=14 (relative to qpos[7])
         self.init_qpos[7 + 8] = np.radians(15)   # right hip pitch
         self.init_qpos[7 + 9] = np.radians(30)   # right knee
-        self.init_qpos[7 + 12] = np.radians(15)  # left hip pitch
-        self.init_qpos[7 + 13] = np.radians(30)  # left knee
+        self.init_qpos[7 + 13] = np.radians(15)  # left hip pitch
+        self.init_qpos[7 + 14] = np.radians(30)  # left knee
 
     def reset(self, seed=None, options=None):
         """Reset environment."""
@@ -133,11 +133,11 @@ class HumanoidEnv(gym.Env):
 
     def _get_obs(self):
         """Get observation vector."""
-        # Joint positions (skip freejoint)
-        joint_pos = self.mj_data.qpos[7:22].copy()
+        # Joint positions (skip freejoint) - 17 joints
+        joint_pos = self.mj_data.qpos[7:24].copy()
 
-        # Joint velocities (skip freejoint)
-        joint_vel = self.mj_data.qvel[6:21].copy()
+        # Joint velocities (skip freejoint) - 17 joints
+        joint_vel = self.mj_data.qvel[6:23].copy()
         joint_vel = np.clip(joint_vel, -10, 10)  # Clip velocities
 
         # Torso orientation
@@ -216,39 +216,45 @@ class HumanoidEnv(gym.Env):
         upright = torso_quat[0] ** 2  # w component, 1 when upright
         reward += 1.5 * upright  # Reduced from 3.0
 
-        # 4. Forward velocity (MAIN OBJECTIVE) - Walking is the primary goal!
-        reward += 10.0 * forward_vel  # Increased to 10.0 - must dominate standing rewards
+        # 4. Forward velocity - Reduced to prevent hopping exploit
+        reward += 3.0 * forward_vel  # Reduced from 10.0 to discourage single-foot hopping
 
-        # 5. Foot contact alternation reward (encourage walking gait)
+        # 5. Foot contact alternation reward (CRITICAL for proper walking)
         # Reward when feet alternate (one on ground, one in air)
         foot_alternation = abs(right_contact - left_contact)
-        reward += 1.5 * foot_alternation
+        reward += 4.0 * foot_alternation  # Increased from 1.5 to strongly encourage alternating gait
 
-        # 6. Foot symmetry reward (discourage limping)
+        # 6. Penalty for single-foot hopping (NEW!)
+        # Penalize when only one foot is on ground (hopping behavior)
+        if (right_contact > 0.5 and left_contact < 0.5) or (left_contact > 0.5 and right_contact < 0.5):
+            reward -= 2.0  # Strong penalty for hopping on one foot
+
+        # 7. Reward for double support phase (both feet down briefly)
+        # This encourages proper walking where both feet touch ground during stance
+        if right_contact > 0.5 and left_contact > 0.5:
+            reward += 0.5  # Small reward for double support (normal in walking)
+
+        # 8. Foot symmetry reward (discourage limping)
         # Get leg joint positions (hip pitch and knee for both legs)
         r_hip_pitch = self.mj_data.qpos[7 + 8]  # right hip pitch
         r_knee = self.mj_data.qpos[7 + 9]       # right knee
-        l_hip_pitch = self.mj_data.qpos[7 + 12] # left hip pitch
-        l_knee = self.mj_data.qpos[7 + 13]      # left knee
+        l_hip_pitch = self.mj_data.qpos[7 + 13] # left hip pitch (updated for 17 DOF)
+        l_knee = self.mj_data.qpos[7 + 14]      # left knee (updated for 17 DOF)
 
         leg_symmetry = -abs(r_hip_pitch + l_hip_pitch) - abs(r_knee + l_knee)
         reward += 0.5 * leg_symmetry
 
-        # 7. Energy penalty - smooth movements
+        # 9. Energy penalty - smooth movements
         ctrl_cost = 0.3 * np.sum(np.square(action))
         reward -= ctrl_cost
 
-        # 8. Lateral drift penalty - walk straight
+        # 10. Lateral drift penalty - walk straight
         lateral_vel = abs(self.mj_data.qvel[1])
         reward -= 1.0 * lateral_vel
 
-        # 9. Rotation penalty - don't spin
+        # 11. Rotation penalty - don't spin
         angular_z = abs(self.mj_data.qvel[5])
         reward -= 0.8 * angular_z
-
-        # 10. Penalty for dragging feet
-        if right_contact and left_contact:
-            reward -= 0.5  # Both feet on ground is okay but don't stay there
 
         return reward
 
@@ -307,7 +313,7 @@ def make_env(render=False):
     return _init
 
 
-def train(resume=False, total_timesteps=3_000_000, headless=False, num_envs=1):
+def train(resume=False, total_timesteps=10_000_000, headless=False, num_envs=1):
     """Train with PPO."""
     print("=" * 60)
     print("FULL HUMANOID TRAINING (PPO)")
