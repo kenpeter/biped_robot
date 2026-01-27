@@ -87,11 +87,23 @@ python3 train_full_robot_mujoco.py --test
 
 After analyzing NVIDIA's Isaac Lab H1 humanoid implementation, we've combined the best of both approaches!
 
+### Quick Comparison: Which Version to Use?
+
+| Version | Status | Key Feature | Problem |
+|---------|--------|-------------|---------|
+| v0 | ❌ Failed | High velocity reward (10.0) | Robot hopped for speed |
+| v1 | ❌ Failed | Sparse airtime (0.4s threshold) | Too hard to discover, still hopped |
+| v2 | ❌ Failed | Dense foot height rewards | Hopping satisfied all rewards |
+| v3 | ⚠️ Good | Stance switching tracking | Worked but feet could slide |
+| **v4** | ✅ **CURRENT** | v3 + Isaac Lab techniques | **Use this!** |
+
+**v4 = Our stance switching + Isaac Lab's single-stance gate + foot slide penalty**
+
 ### Evolution of Solutions
 
 - **v1-v2**: Robot hopped - rewards didn't distinguish hopping from walking
-- **v3**: Explicit stance switching tracking - good but complex
-- **v4 (CURRENT)**: Hybrid approach combining v3 + Isaac Lab techniques
+- **v3**: Explicit stance switching tracking - good but unstable gait
+- **v4 (CURRENT)**: Hybrid approach = v3 stability + Isaac Lab gait quality
 
 ### The Critical Insights
 
@@ -433,23 +445,176 @@ python3 deploy_full_robot_jetson.py
 
 ---
 
-## Next Steps
+## Next Steps - Training with v4
 
-1. **Train the robot**: Start with `python3 train_full_robot_mujoco.py`
-2. **Monitor progress**: Watch explained variance reach 0.9+
-3. **Test the policy**: Use `--test` to see trained behavior in simulation
-4. **Deploy to hardware**: Follow deployment guide above
+### Quick Start (v4 Hybrid Rewards)
+
+**⚠️ CRITICAL: You MUST start fresh! Don't resume from old models!**
+
+```bash
+cd models
+
+# Step 1: Backup old model (it learned hopping!)
+mv full_robot_ppo.zip full_robot_ppo_hopping_old.zip
+
+# Step 2: Train from scratch with v4 hybrid rewards
+python3 train_full_robot_mujoco.py --headless --num-envs 32 --timesteps 3000000
+
+# Monitor these metrics:
+# - explained_variance should reach 0.85+ (robot understands task)
+# - Look for regular foot switches in logs
+# - Forward velocity should increase steadily
+```
+
+**Why start fresh?**
+- Old model learned that hopping works
+- Neural network is optimized for that exploit
+- New v4 rewards make hopping unprofitable
+- Fresh start = faster convergence to walking
+
+### What to Expect with v4
+
+**First 100K steps:**
+- Robot discovers stance switching gives big rewards (+2.0)
+- Learns that keeping foot planted avoids slide penalty
+- Forward velocity starts increasing
+
+**100K-500K steps:**
+- Regular foot switching established
+- Gait becomes smoother (foot slide penalty working)
+- Explained variance reaches 0.7-0.8
+
+**500K-1M steps:**
+- Stable bipedal walking with alternating feet
+- No hopping (three-layer defense prevents it)
+- Ready to test!
+
+**1M-3M steps:**
+- Fine-tuning gait efficiency
+- Smoother transitions
+- Higher forward velocity
+
+### Testing Your Trained Policy
+
+```bash
+# After 1M+ steps with explained_variance > 0.85
+python3 train_full_robot_mujoco.py --test
+
+# Watch for:
+# ✓ Alternating foot contacts (not hopping!)
+# ✓ Stance foot stays planted (no sliding)
+# ✓ Forward movement
+# ✓ Stays upright
+```
+
+### Detailed Training Steps
+
+1. **Train the robot**: Use v4 command above
+2. **Monitor progress**: Watch explained variance reach 0.85+
+3. **Check foot switches**: Look for regular alternation
+4. **Test the policy**: Use `--test` after 1M steps
+5. **Deploy to hardware**: Follow deployment guide if walking looks good
+
+---
+
+## Advanced Techniques
+
+### Can We Use Transformers for Robot Training?
+
+**Yes!** Transformers are increasingly used in robot learning. Here's what you need to know:
+
+#### Recent Transformer-Based Approaches:
+
+1. **Decision Transformer (2021)**
+   - Treats RL as sequence modeling instead of traditional RL
+   - Predicts actions conditioned on desired return
+   - Better for offline learning from demonstrations
+
+2. **Trajectory Transformer (2021)**
+   - Plans entire action sequences at once
+   - Good for long-horizon planning
+   - Can reason about multi-step coordination
+
+3. **ACT (Action Chunking Transformer, 2023)**
+   - Predicts sequences of actions (chunks)
+   - Excellent for manipulation tasks
+   - Reduces compounding errors
+
+4. **Gato (DeepMind, 2022)**
+   - Multi-task transformer agent
+   - Single model for many different tasks
+   - Can transfer knowledge between tasks
+
+5. **RT-1 & RT-2 (Google, 2022-2023)**
+   - Vision transformers for robot manipulation
+   - Trained on huge datasets of robot interactions
+   - Strong generalization capabilities
+
+#### For Bipedal Walking Specifically:
+
+**Advantages:**
+- **Temporal patterns**: Can learn periodic gait cycles (left-right-left-right)
+- **Long-term planning**: Better than LSTM for multi-step foot coordination
+- **Attention mechanism**: Can focus on critical joints (hip/knee/ankle) during different gait phases
+- **Sequence modeling**: Natural fit for walking (sequence of alternating steps)
+
+**Disadvantages:**
+- **More complex**: Harder to debug than PPO
+- **Data hungry**: Needs 5-10x more training samples
+- **Slower training**: Larger models = longer training time
+- **Less stable**: Can have mode collapse issues
+
+#### Recommendation for Your Project:
+
+```
+Phase 1: Get PPO v4 working FIRST ✓
+├── Simpler to debug
+├── Faster to train (1-3M steps)
+├── Well-understood failure modes
+└── Proven for locomotion
+
+Phase 2: Then experiment with Transformers
+├── Decision Transformer for offline learning from PPO demonstrations
+├── Action Chunking for smoother gait sequences
+└── Compare performance vs PPO baseline
+```
+
+#### Implementation Path (If You Want to Try):
+
+```python
+# After PPO works, try Decision Transformer:
+from decision_transformer import DecisionTransformerGym
+
+# Collect demonstrations from trained PPO policy
+demonstrations = collect_demos(ppo_policy, num_episodes=1000)
+
+# Train Decision Transformer
+dt_model = DecisionTransformerGym(
+    state_dim=48,
+    act_dim=17,
+    max_length=200,  # Context length
+    n_layer=3,
+    n_head=4,
+    n_inner=256
+)
+dt_model.train(demonstrations, target_return=500)
+```
+
+**Bottom line**: Start with PPO v4 (current implementation), then explore transformers once you have a working baseline!
 
 ---
 
 ## Research References
 
 Based on 2024-2025 research on humanoid locomotion with deep RL:
-- PPO for continuous control (Schulman et al.)
-- Foot contact alternation rewards (Singh et al., 2024)
-- Clock-based gait coordination (Radosavovic et al., 2024)
-- Curriculum learning for bipedal robots
-- Symmetric movement rewards for natural gait
+- **PPO for continuous control** (Schulman et al., 2017)
+- **NVIDIA Isaac Lab H1 implementation** - Our v4 reward structure
+- **Foot contact alternation rewards** (Singh et al., 2024)
+- **Clock-based gait coordination** (Radosavovic et al., 2024)
+- **Decision Transformer** (Chen et al., 2021) - Transformers for RL
+- **Action Chunking Transformer** (Zhao et al., 2023) - Sequence prediction
+- **Curriculum learning** for bipedal robots
+- **Symmetric movement rewards** for natural gait
 
 ---
 
