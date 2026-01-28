@@ -789,6 +789,74 @@ Step 3M:      explained_var=0.93, loss=70,  value_loss=200, entropy=-9
 
 ---
 
+## NVIDIA GR00T Model Assessment (January 2026)
+
+### 🚫 **GR00T N1.6 on Jetson Nano: NOT COMPATIBLE**
+
+**GR00T Requirements:**
+- **Model**: 3B parameters (requires 8GB+ VRAM)
+- **Hardware**: Jetson AGX Thor, RTX 4090, or H100 minimum
+- **Performance**: 9.5 Hz on Jetson Thor, 22.8 Hz on RTX 4090
+- **Memory**: 128GB NVMe SSD + high RAM requirements
+
+**Jetson Nano Limitations:**
+- **Memory**: ~4GB RAM (insufficient for 3B model)
+- **Compute**: 128 CUDA cores (vs 5120+ in RTX 4090)
+- **Architecture**: Older Maxwell GPU (no Tensor Cores)
+- **Storage**: eMMC (slower than NVMe SSD)
+
+### ✅ **Jetson Nano Compatible Alternatives**
+
+#### 1. **Small Language Models (SLMs)**
+- **Phi-2 (2.7B)** - Can run with INT4 quantization
+- **Gemma-2B** - Optimized for edge deployment
+- **StableLM-3B** - Good reasoning, smaller footprint
+- **Library**: `NanoLLM` with TensorRT optimization
+
+#### 2. **Lightweight VLA Models**
+- **OpenGVLab InternVL** (small versions < 1B)
+- **LLaVA variants** (mobile-optimized)
+- **MobileCLIP** - Vision tasks with minimal resources
+
+#### 3. **Hybrid Deployment Strategy**
+**Jetson Nano for:**
+- Servo control and communication (LSC-24 board)
+- Sensor processing (cameras, IMU)
+- Simple AI models (pose detection, object detection)
+- Real-time low-level control
+
+**Cloud/Edge Server for:**
+- Heavy policy inference (GR00T or similar)
+- Training and fine-tuning
+- Complex reasoning tasks
+
+#### 4. **Hardware Upgrade Path**
+**Recommended for GR00T:**
+- **Jetson Orin Nano** (8GB RAM, modern architecture)
+- **Jetson AGX Orin** (64GB RAM, production ready)
+- **Custom edge server** with RTX GPU
+
+### 🎯 **Recommendation**
+
+**Stick with current approach** (PPO + MuJoCo) because:
+1. ✅ **Works on Jetson Nano** - Proven deployment path
+2. ✅ **Minimal hardware requirements** - Fits current setup
+3. ✅ **Fast training** - 1-2 hours for good walking
+4. ✅ **Reliable inference** - 100+ Hz on Jetson Nano
+
+**Future upgrade path:**
+1. **Short term**: Try SLMs (Phi-2, Gemma-2B) with NanoLLM
+2. **Medium term**: Upgrade to Jetson Orin Nano (8GB)
+3. **Long term**: Deploy GR00T with Jetson AGX Thor
+
+**Current hardware can handle:**
+- YOLOv8 object detection (25+ FPS)
+- MediaPipe pose estimation (30+ FPS)
+- Small language models (< 1B parameters)
+- Your existing PPO policies (100+ Hz)
+
+---
+
 ## Contact
 
 See `CLAUDE.md` for hardware deployment and servo calibration details.
