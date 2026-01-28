@@ -112,7 +112,7 @@ python3 train_full_robot_mujoco.py --test
 
 ### 🎯 v7 Changes (Applied)
 
-**3 key tuning changes:**
+**4 key tuning changes:**
 
 1. **Increased foot switch reward: 5.0 → 8.0**
    - Makes proper walking MORE attractive than hopping
@@ -126,6 +126,11 @@ python3 train_full_robot_mujoco.py --test
    - Small reward when foot is on ground
    - Directly discourages both-feet-in-air (hopping)
 
+4. **Added upper body stability penalty: -0.05**
+   - Penalizes arm/hand velocity
+   - Prevents "crazy hands" while walking
+   - Arms stay calm like human walking
+
 ### 📋 v7 Reward Summary
 
 | Reward | v6 | v7 | Why Changed |
@@ -133,6 +138,7 @@ python3 train_full_robot_mujoco.py --test
 | Foot switch | +5.0 | **+8.0** | Make walking more attractive |
 | Forward velocity | +1.0 | **+0.5** | Less rushing |
 | Ground contact | — | **+0.3** | Anti-hop bonus |
+| Upper body stability | — | **-0.05** | Prevent crazy hands |
 | Upright | +2.0 | +2.0 | Unchanged |
 | Height | +0.5 | +0.5 | Unchanged |
 

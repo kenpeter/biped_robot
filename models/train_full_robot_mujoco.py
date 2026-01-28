@@ -270,6 +270,11 @@ class HumanoidEnv(gym.Env):
         height_bonus = 1.0 - abs(torso_z - 0.42)  # Max 1.0 at perfect height
         reward += 0.5 * np.clip(height_bonus, 0, 1.0)
 
+        # 4. Upper body stability (weight: 0.05) - Prevent "crazy hands"
+        # Head (6) + R Arm (7-9) + L Arm (10-12) = qvel[6:13]
+        upper_body_vel = self.mj_data.qvel[6:13]
+        reward -= 0.05 * np.sum(upper_body_vel ** 2)
+
         # v7 improvements over v6:
         # - Foot switch +8.0 (was +5.0) = walking is MORE rewarding than hopping
         # - Forward vel +0.5 (was +1.0) = less rushing, smoother gait
