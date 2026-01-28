@@ -101,7 +101,79 @@ python3 train_full_robot_mujoco.py --test
 | v3 | ❌ Failed | Stance switching tracking | Feet could slide |
 | v4 | ❌ Failed | v3 + Isaac Lab (10+ rewards) | Stood on one leg, fell |
 | v5 | ❌ Failed | Stronger penalties | Negative rewards, fell faster |
-| **v6** | ✅✅✅ **WORKS!** | **MINIMAL: Only 3 rewards** | **IT WALKS!** 🚀 |
+| **v6** | ✅ Works | MINIMAL: Only 3 rewards | Walks but slight hopping |
+| **v7** | ✅✅✅ **BEST!** | **Anti-hop tuning** | **Human-like walking!** 🚀 |
+
+---
+
+## 🚶 **v7: Human-Like Walking (Anti-Hop Tuning)**
+
+**Problem with v6:** Robot walks but has slight hopping. Forward velocity reward encourages quick movements, and small hops can be faster than proper walking.
+
+### 🎯 v7 Changes (Applied)
+
+**3 key tuning changes:**
+
+1. **Increased foot switch reward: 5.0 → 8.0**
+   - Makes proper walking MORE attractive than hopping
+   - Bigger incentive to alternate feet
+
+2. **Reduced forward velocity: 1.0 → 0.5**
+   - Less rush = smoother gait
+   - Quality over speed
+
+3. **Added ground contact bonus: +0.3**
+   - Small reward when foot is on ground
+   - Directly discourages both-feet-in-air (hopping)
+
+### 📋 v7 Reward Summary
+
+| Reward | v6 | v7 | Why Changed |
+|--------|----|----|-------------|
+| Foot switch | +5.0 | **+8.0** | Make walking more attractive |
+| Forward velocity | +1.0 | **+0.5** | Less rushing |
+| Ground contact | — | **+0.3** | Anti-hop bonus |
+| Upright | +2.0 | +2.0 | Unchanged |
+| Height | +0.5 | +0.5 | Unchanged |
+
+### 🔧 Options If Still Hopping
+
+**Option 1: Train Longer**
+```bash
+python3 train_full_robot_mujoco.py --resume --headless --num-envs 32 --timesteps 5000000
+```
+Many robots transition from hop-walk to proper walk between 2-5M steps.
+
+**Option 2: Reward Tuning (CURRENT - v7)**
+- Increase foot switch: 5.0 → 8.0 ✅
+- Reduce forward velocity: 1.0 → 0.5 ✅
+- Add ground contact bonus: +0.3 ✅
+
+**Option 3: Anti-Hop Penalty (If v7 Not Enough)**
+Add small penalty for both feet in air:
+```python
+if not right_contact and not left_contact:
+    reward -= 0.5  # Gentle anti-hop penalty
+```
+
+### ⏱️ Expected Training Timeline
+
+| Steps | Behavior |
+|-------|----------|
+| 1-2M | Walking with slight hops (v6) |
+| 2-3M | Hops reducing with v7 tuning |
+| 3-5M | Smooth alternating gait |
+| 5-10M | Human-like walking |
+
+### 🚀 Train with v7
+
+```bash
+# Delete old model and train fresh with v7 rewards
+rm full_robot_ppo.zip
+python3 train_full_robot_mujoco.py --headless --num-envs 32 --timesteps 3000000
+```
+
+---
 
 ### 💡 The Critical Discovery: Less is More
 
@@ -136,7 +208,8 @@ python3 train_full_robot_mujoco.py --test
 - **v0-v2**: Hopping exploits - wrong reward balance
 - **v3**: Stance switching - good idea, complex implementation
 - **v4-v5**: Added Isaac Lab techniques - TOO COMPLEX, 10+ reward terms
-- **v6 (CURRENT)**: 🎉 **Radical simplification - IT WORKS!**
+- **v6**: Radical simplification - walks but slight hopping
+- **v7 (CURRENT)**: 🚶 **Anti-hop tuning - HUMAN-LIKE WALKING!**
 
 ### 📋 v6 Reward Components (MINIMAL)
 

@@ -216,11 +216,12 @@ class HumanoidEnv(gym.Env):
         return obs, reward, terminated, truncated, {}
 
     def _get_reward(self, action):
-        """Calculate reward - v6 MINIMAL (Let robot discover walking naturally).
+        """Calculate reward - v7 ANTI-HOP (Human-like walking).
 
-        INSIGHT: We were OVERTHINKING it. All the complex penalties prevented
-        the robot from even learning basics. This version uses ONLY positive rewards
-        and lets the robot discover walking through natural exploration.
+        Built on v6 MINIMAL but tuned to eliminate slight hopping:
+        - Increased foot switch reward (5.0 → 8.0) - make walking MORE attractive
+        - Reduced forward velocity (1.0 → 0.5) - less rushing, smoother gait
+        - Added ground contact bonus (+0.3) - reward foot on ground (anti-hop)
 
         Based on the principle: "Reward what you want, ignore what you don't."
         """
@@ -245,12 +246,16 @@ class HumanoidEnv(gym.Env):
                 self.steps_on_same_leg = 0
             elif self.stance_leg != current_stance:
                 # FOOT SWITCHED! Big reward!
-                reward += 5.0  # HUGE - this is what we want!
+                reward += 8.0  # v7: Increased from 5.0 to make walking MORE attractive than hopping
                 self.stance_leg = current_stance
                 self.total_foot_switches += 1
                 self.steps_on_same_leg = 0
             else:
                 self.steps_on_same_leg += 1
+
+        # v7: Ground contact bonus (anti-hop) - reward having foot on ground
+        if right_contact or left_contact:
+            reward += 0.3  # Small bonus for foot on ground
 
         # ========== ONLY 3 SIMPLE REWARDS ==========
 
@@ -258,18 +263,18 @@ class HumanoidEnv(gym.Env):
         upright = torso_quat[0] ** 2  # 1.0 when perfectly upright
         reward += 2.0 * upright
 
-        # 2. Move forward (weight: 1.0) - Secondary goal
-        reward += 1.0 * np.clip(forward_vel, 0, 1.0)
+        # 2. Move forward (weight: 0.5) - Secondary goal (v7: reduced from 1.0 to discourage rushing/hopping)
+        reward += 0.5 * np.clip(forward_vel, 0, 1.0)
 
         # 3. Maintain height (weight: 0.5) - Bonus for staying up
         height_bonus = 1.0 - abs(torso_z - 0.42)  # Max 1.0 at perfect height
         reward += 0.5 * np.clip(height_bonus, 0, 1.0)
 
-        # That's it! No penalties, no complex gating.
-        # Robot will naturally discover:
-        # - Falling = lose upright reward
-        # - Hopping on one leg = unstable = fall eventually
-        # - Switching feet = get +5.0 bonus + stay up longer = WIN!
+        # v7 improvements over v6:
+        # - Foot switch +8.0 (was +5.0) = walking is MORE rewarding than hopping
+        # - Forward vel +0.5 (was +1.0) = less rushing, smoother gait
+        # - Ground contact +0.3 = direct anti-hop incentive
+        # Result: Human-like walking instead of hop-walking!
 
         return reward
 
