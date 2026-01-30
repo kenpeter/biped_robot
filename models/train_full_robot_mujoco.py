@@ -109,7 +109,7 @@ class HumanoidEnv(gym.Env):
     def _setup_init_pose(self):
         """Setup initial standing pose."""
         self.init_qpos = np.zeros(self.mj_model.nq)
-        self.init_qpos[2] = 0.42  # torso height
+        self.init_qpos[2] = 0.28  # torso height (scaled for 42cm robot)
         self.init_qpos[3] = 1.0   # quaternion w
 
         # Bent knees for stability
@@ -267,7 +267,7 @@ class HumanoidEnv(gym.Env):
         reward += 0.5 * np.clip(forward_vel, 0, 1.0)
 
         # 3. Maintain height (weight: 0.5) - Bonus for staying up
-        height_bonus = 1.0 - abs(torso_z - 0.42)  # Max 1.0 at perfect height
+        height_bonus = 1.0 - abs(torso_z - 0.28)  # Max 1.0 at perfect height (42cm robot)
         reward += 0.5 * np.clip(height_bonus, 0, 1.0)
 
         # v7 improvements over v6:
@@ -284,7 +284,7 @@ class HumanoidEnv(gym.Env):
         torso_quat = self.mj_data.qpos[3:7]
 
         # Fell down
-        if torso_z < 0.25:
+        if torso_z < 0.15:  # Fallen threshold (scaled for 42cm robot)
             return True
 
         # Too tilted
