@@ -273,11 +273,19 @@ class HumanoidEnv(gym.Env):
         height_bonus = 1.0 - abs(torso_z - 0.29)  # Max 1.0 at perfect height
         reward += 0.5 * np.clip(height_bonus, 0, 1.0)
 
-        # That's it! No penalties, no complex gating.
+        # ========== UPPER BODY STABILITY ==========
+        # Penalize excessive upper body movement (head + arms)
+        # Allows natural arm swing but prevents wild flailing for reward hacking
+        # Upper body actions are indices 0-6 (head=0, right_arm=1-3, left_arm=4-6)
+        upper_body_actions = action[0:7]  # head + both arms
+        upper_body_penalty = np.sum(upper_body_actions ** 2)  # L2 penalty
+        reward -= 0.3 * upper_body_penalty  # Small penalty weight
+
         # Robot will naturally discover:
         # - Falling = lose upright reward
         # - Hopping on one leg = unstable = fall eventually
         # - Switching feet = get +8.0 bonus + stay up longer = WIN!
+        # - Wild arm flailing = penalty, calm arms = better reward
 
         return reward
 
