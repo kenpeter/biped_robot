@@ -109,7 +109,7 @@ class HumanoidEnv(gym.Env):
     def _setup_init_pose(self):
         """Setup initial standing pose."""
         self.init_qpos = np.zeros(self.mj_model.nq)
-        self.init_qpos[2] = 0.28  # torso height (scaled for 42cm robot)
+        self.init_qpos[2] = 0.29  # torso height (feet just touching ground)
         self.init_qpos[3] = 1.0   # quaternion w
 
         # Bent knees for stability
@@ -269,8 +269,8 @@ class HumanoidEnv(gym.Env):
         reward += 0.5 * np.clip(forward_vel, 0, 1.0)
 
         # 3. Maintain height (weight: 0.5) - Bonus for staying up
-        # Scaled: target height 0.28m for 42cm robot (was 0.42m for 70cm robot)
-        height_bonus = 1.0 - abs(torso_z - 0.28)  # Max 1.0 at perfect height
+        # Target height 0.29m (pelvis center when standing)
+        height_bonus = 1.0 - abs(torso_z - 0.29)  # Max 1.0 at perfect height
         reward += 0.5 * np.clip(height_bonus, 0, 1.0)
 
         # That's it! No penalties, no complex gating.
