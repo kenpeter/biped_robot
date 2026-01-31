@@ -2,18 +2,18 @@
 
 ## Overview
 
-This project trains a full 17-DOF humanoid robot to walk using **PPO (Proximal Policy Optimization)** reinforcement learning in MuJoCo physics simulation.
+This project trains a full 15-DOF humanoid robot to walk using **PPO (Proximal Policy Optimization)** reinforcement learning in MuJoCo physics simulation.
 
 ## Robot Structure
 
-### 17 Servo Channels (Continuous Rotation):
+### 15 Servo Channels (Continuous Rotation):
 - **Head (1 DOF)**: Channel 0 - left/right pan
 - **Right Arm (3 DOF)**: Channels 1, 2, 3 - shoulder pitch, shoulder roll, elbow
 - **Left Arm (3 DOF)**: Channels 12, 13, 14 - shoulder pitch, shoulder roll, elbow
-- **Right Leg (5 DOF)**: Channels 4, 5, 6, 7, 8 - hip roll, hip pitch, knee, ankle roll, ankle pitch
-- **Left Leg (5 DOF)**: Channels 15, 16, 17, 18, 19 - hip roll, hip pitch, knee, ankle roll, ankle pitch
+- **Right Leg (4 DOF)**: Channels 4, 5, 6, 7 - hip roll, hip pitch, knee, ankle pitch
+- **Left Leg (4 DOF)**: Channels 15, 16, 17, 18 - hip roll, hip pitch, knee, ankle pitch
 
-**NOTE**: Ankle pitch joints (8 & 19) added for proper bipedal walking. These enable forward push-off during walking, critical for natural gait.
+**NOTE**: Each leg has 4 DOF (no ankle roll). Knee joints only bend backward (0° to 120°, no hyperextension).
 
 All servos use continuous rotation (speed + timing control), not position control.
 
@@ -102,45 +102,66 @@ python3 train_full_robot_mujoco.py --test
 | v4 | ❌ Failed | v3 + Isaac Lab (10+ rewards) | Stood on one leg, fell |
 | v5 | ❌ Failed | Stronger penalties | Negative rewards, fell faster |
 | **v6** | ✅ Works | MINIMAL: Only 3 rewards | Walks but slight hopping |
-| **v7** | ✅✅✅ **BEST!** | **Anti-hop tuning** | **Human-like walking!** 🚀 |
+| **v7** | ✅✅ Good | Anti-hop tuning | Human-like walking |
+| v8 | ❌ Failed | Strict gating + penalties | Reverted v7 gains, fell again |
+| **v9** | ✅✅✅ **CURRENT** | **v7 philosophy + 42cm robot** | **Scaled for real hardware** 🚀 |
 
 ---
 
-## 🚶 **v7: Human-Like Walking (Anti-Hop Tuning)**
+## 🚶 **v9: Current Version (v7 Philosophy + 42cm Robot)**
 
-**Problem with v6:** Robot walks but has slight hopping. Forward velocity reward encourages quick movements, and small hops can be faster than proper walking.
+**v9 combines the working v7 philosophy with proper scaling for the 42cm real robot.**
 
-### 🎯 v7 Changes (Applied)
+### 🤖 Robot Dimensions (42cm tall)
 
-**4 key tuning changes:**
+| Part | Dimensions | Notes |
+|------|------------|-------|
+| **Pelvis** | 14×6×6 cm | Main body |
+| **Chest** | 14×6×6 cm | Upper torso |
+| **Neck** | 4×4×4 cm | Small, proportional |
+| **Head** | 6×6×4 cm | With pan servo |
+| **Upper arm** | 8×3×3 cm | Horizontal (T-pose) |
+| **Forearm** | 2.4×2.4×7 cm | Hangs down from elbow |
+| **Thigh** | 8×8×12 cm | Upper leg |
+| **Shin** | 7×7×12 cm | Lower leg |
+| **Foot** | 3×6×2 cm | Width × Length × Height |
 
-1. **Increased foot switch reward: 5.0 → 8.0**
-   - Makes proper walking MORE attractive than hopping
-   - Bigger incentive to alternate feet
+**Standing height:** 29cm (pelvis center when feet on ground)
 
-2. **Reduced forward velocity: 1.0 → 0.5**
-   - Less rush = smoother gait
-   - Quality over speed
+### 🎯 v9 Philosophy (from v7)
 
-3. **Added ground contact bonus: +0.3**
-   - Small reward when foot is on ground
-   - Directly discourages both-feet-in-air (hopping)
+**"Reward what you want, ignore what you don't"**
 
-4. **Added upper body stability penalty: -0.05**
-   - Penalizes arm/hand velocity
-   - Prevents "crazy hands" while walking
-   - Arms stay calm like human walking
+- ✅ NO penalties, only positive rewards
+- ✅ High foot switch bonus (+8.0) - makes walking attractive
+- ✅ Low forward velocity (+0.5) - prevents rushing/hopping
+- ✅ Ground contact bonus (+0.3) - anti-hop incentive
 
-### 📋 v7 Reward Summary
+### 📋 v9 Reward Summary
 
-| Reward | v6 | v7 | Why Changed |
-|--------|----|----|-------------|
-| Foot switch | +5.0 | **+8.0** | Make walking more attractive |
-| Forward velocity | +1.0 | **+0.5** | Less rushing |
-| Ground contact | — | **+0.3** | Anti-hop bonus |
-| Upper body stability | — | **-0.05** | Prevent crazy hands |
-| Upright | +2.0 | +2.0 | Unchanged |
-| Height | +0.5 | +0.5 | Unchanged |
+| Reward | Weight | Description |
+|--------|--------|-------------|
+| **Foot switch** | +8.0 | BIG bonus when alternating feet |
+| **Ground contact** | +0.3 | Small bonus for foot on ground |
+| **Upright** | +2.0 | Stay upright (most important) |
+| **Forward velocity** | +0.5 | Move forward (low to prevent hopping) |
+| **Height** | +0.5 | Maintain standing height (0.29m) |
+
+### 🔧 Key Parameters (scaled for 42cm robot)
+
+```python
+# Standing height
+init_qpos[2] = 0.29  # Pelvis center height
+
+# Target height for reward
+target_height = 0.29  # Same as standing
+
+# Fall threshold
+fall_threshold = 0.15  # ~half of standing height
+
+# Foot contact detection
+contact_threshold = 0.02  # Foot height (2cm)
+```
 
 ### 🔧 Options If Still Hopping
 
@@ -171,12 +192,26 @@ if not right_contact and not left_contact:
 | 3-5M | Smooth alternating gait |
 | 5-10M | Human-like walking |
 
-### 🚀 Train with v7
+### 🚀 Train with v9
 
 ```bash
-# Delete old model and train fresh with v7 rewards
+# Delete old model and train fresh with v9 rewards
 rm full_robot_ppo.zip
 python3 train_full_robot_mujoco.py --headless --num-envs 32 --timesteps 3000000
+
+# Test the trained policy (requires display)
+python3 train_full_robot_mujoco.py --test
+```
+
+### ⚠️ Display Issues
+
+If `--test` fails with GLX/OpenGL errors:
+```bash
+# Check NVIDIA driver
+nvidia-smi
+
+# If "Driver/library version mismatch" → reboot required
+sudo reboot
 ```
 
 ---
@@ -215,7 +250,9 @@ python3 train_full_robot_mujoco.py --headless --num-envs 32 --timesteps 3000000
 - **v3**: Stance switching - good idea, complex implementation
 - **v4-v5**: Added Isaac Lab techniques - TOO COMPLEX, 10+ reward terms
 - **v6**: Radical simplification - walks but slight hopping
-- **v7 (CURRENT)**: 🚶 **Anti-hop tuning - HUMAN-LIKE WALKING!**
+- **v7**: Anti-hop tuning - human-like walking (70cm robot)
+- **v8**: Strict gating + penalties - FAILED (reverted v7 gains)
+- **v9 (CURRENT)**: 🚶 **v7 philosophy + 42cm robot scaling**
 
 ### 📋 v6 Reward Components (MINIMAL)
 
@@ -241,10 +278,10 @@ python3 train_full_robot_mujoco.py --headless --num-envs 32 --timesteps 3000000
 
 3. **Height Maintenance (+0.5 max)**
    ```python
-   height_bonus = 1.0 - abs(torso_z - 0.42)
+   height_bonus = 1.0 - abs(torso_z - 0.29)  # 42cm robot
    reward += 0.5 * np.clip(height_bonus, 0, 1.0)
    ```
-   - Bonus for staying at target height
+   - Bonus for staying at target height (0.29m for 42cm robot)
    - Natural feedback signal for posture
 
 **Breakthrough Bonus (Sparse):**
@@ -288,11 +325,11 @@ The breakthrough came when we removed EVERYTHING unnecessary and kept only what 
 
 ---
 
-## Observation Space (48 dimensions)
+## Observation Space (44 dimensions)
 
 The robot observes:
-- **Joint positions** (17): All servo angles
-- **Joint velocities** (17): Angular velocities
+- **Joint positions** (15): All servo angles
+- **Joint velocities** (15): Angular velocities
 - **Torso orientation** (4): Quaternion (w, x, y, z)
 - **Torso velocity** (6): Linear (x, y, z) + Angular (roll, pitch, yaw)
 - **Foot contacts** (2): Binary ground contact for each foot
@@ -386,7 +423,7 @@ These changes enable faster learning with the new dense reward structure while m
 
 ```
 models/
-├── full_robot.xml              # MuJoCo model (15 DOF humanoid)
+├── full_robot.xml              # MuJoCo model (15 DOF: 1 head + 6 arms + 8 legs)
 ├── train_full_robot_mujoco.py  # Training script
 ├── full_robot_ppo.zip          # Trained policy
 ├── ppo_logs/                   # Checkpoints and tensorboard logs
@@ -447,7 +484,7 @@ python3 deploy_legs_only_jetson.py           # Run trained policy
 - Uses trained PPO model for walking
 - Freezes upper body (prevents twisting)
 - Faster than scripted but still controlled
-- **Active servos (8):** both legs (hip roll, hip pitch, knee, ankle × 2)
+- **Active servos (8):** both legs (hip roll, hip pitch, knee, ankle pitch × 2)
 - **Frozen servos (7):** head (1) + both arms (6)
 
 #### Option 3: **Full Body** (Advanced - use last!)
@@ -514,11 +551,11 @@ python3 deploy_full_robot_jetson.py
 
 ---
 
-## Next Steps - Training with v6 🚀
+## Next Steps - Training with v9 🚀
 
-### 🎯 Quick Start (v6 MINIMAL - The One That Works!)
+### 🎯 Quick Start (v9 - Current Working Version)
 
-**✨ THE WORKING VERSION - Use this!**
+**✨ v9 = v7 philosophy + 42cm robot scaling**
 
 ```bash
 cd models
@@ -526,7 +563,7 @@ cd models
 # Step 1: Remove old failed models
 rm full_robot_ppo.zip
 
-# Step 2: Train from scratch with v6 MINIMAL rewards
+# Step 2: Train from scratch with v9 rewards
 python3 train_full_robot_mujoco.py --headless --num-envs 32 --timesteps 2000000
 
 # Monitor these metrics:
@@ -536,11 +573,13 @@ python3 train_full_robot_mujoco.py --headless --num-envs 32 --timesteps 2000000
 # - Look for foot switches in terminal output
 ```
 
-**Why v6 works when v4/v5 failed:**
-- ✅ Positive rewards from step 1 (encourages exploration)
-- ✅ No conflicting penalties (clear learning signal)
-- ✅ Simple enough to discover through random exploration
-- ✅ Natural consequences replace complex logic
+**Why v9 works:**
+- ✅ v7 philosophy: "Reward what you want, ignore what you don't"
+- ✅ NO penalties - only positive rewards
+- ✅ High foot switch bonus (+8.0) makes walking attractive
+- ✅ Low forward velocity (+0.5) prevents rushing/hopping
+- ✅ Ground contact bonus (+0.3) directly rewards feet on ground
+- ✅ Properly scaled for 42cm robot (height=0.29m, contact=0.02m)
 
 ### 🎉 What to Expect with v6 (TESTED & WORKING!)
 
