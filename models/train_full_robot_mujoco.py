@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Train full humanoid robot using MuJoCo + Stable Baselines3 PPO.
 
-All servos (17 DOF):
+All servos (15 DOF):
   - Head: 0 (left/right)
   - Right arm: 1 (shoulder), 2 (upper arm), 3 (forearm)
   - Left arm: 12 (shoulder), 13 (upper arm), 14 (forearm)
-  - Right leg: 4 (hip roll), 5 (hip pitch), 6 (knee), 7 (ankle roll), 8 (ankle pitch)
-  - Left leg: 15 (hip roll), 16 (hip pitch), 17 (knee), 18 (ankle roll), 19 (ankle pitch)
+  - Right leg: 4 (hip roll), 5 (hip pitch), 6 (knee), 7 (ankle pitch)
+  - Left leg: 15 (hip roll), 16 (hip pitch), 17 (knee), 18 (ankle pitch)
 
 Usage:
   python3 train_full_robot_mujoco.py              # train with PPO (shows UI, 1M steps)
@@ -82,8 +82,8 @@ class HumanoidEnv(gym.Env):
         self.total_foot_switches = 0  # Total times stance leg switched
         self.last_switch_step = 0
 
-        # Action space: 17 actuators, range [-1, 1]
-        self.n_actuators = 17
+        # Action space: 15 actuators, range [-1, 1]
+        self.n_actuators = 15
         self.action_space = spaces.Box(
             low=-1.0, high=1.0,
             shape=(self.n_actuators,),
@@ -103,8 +103,8 @@ class HumanoidEnv(gym.Env):
 
     def _get_obs_dim(self):
         """Get observation dimension."""
-        # Joint pos (17) + joint vel (17) + torso quat (4) + torso vel (6) + foot contacts (2) + gait phase (2: sin, cos)
-        return 17 + 17 + 4 + 6 + 2 + 2
+        # Joint pos (15) + joint vel (15) + torso quat (4) + torso vel (6) + foot contacts (2) + gait phase (2: sin, cos)
+        return 15 + 15 + 4 + 6 + 2 + 2
 
     def _setup_init_pose(self):
         """Setup initial standing pose."""
@@ -113,12 +113,12 @@ class HumanoidEnv(gym.Env):
         self.init_qpos[3] = 1.0   # quaternion w
 
         # Bent knees for stability
-        # Joint order: head(1), r_arm(3), l_arm(3), r_leg(5), l_leg(5) = 17 total
-        # r_hip_pitch=8, r_knee=9, l_hip_pitch=13, l_knee=14 (relative to qpos[7])
+        # Joint order: head(1), r_arm(3), l_arm(3), r_leg(4), l_leg(4) = 15 total
+        # r_hip_pitch=8, r_knee=9, l_hip_pitch=12, l_knee=13 (relative to qpos[7])
         self.init_qpos[7 + 8] = np.radians(15)   # right hip pitch
         self.init_qpos[7 + 9] = np.radians(30)   # right knee
-        self.init_qpos[7 + 13] = np.radians(15)  # left hip pitch
-        self.init_qpos[7 + 14] = np.radians(30)  # left knee
+        self.init_qpos[7 + 12] = np.radians(15)  # left hip pitch
+        self.init_qpos[7 + 13] = np.radians(30)  # left knee
 
     def reset(self, seed=None, options=None):
         """Reset environment."""
@@ -157,10 +157,10 @@ class HumanoidEnv(gym.Env):
 
     def _get_obs(self):
         """Get observation vector."""
-        # Joint positions (skip freejoint) - 17 joints
+        # Joint positions (skip freejoint) - 15 joints
         joint_pos = self.mj_data.qpos[7:24].copy()
 
-        # Joint velocities (skip freejoint) - 17 joints
+        # Joint velocities (skip freejoint) - 15 joints
         joint_vel = self.mj_data.qvel[6:23].copy()
         joint_vel = np.clip(joint_vel, -10, 10)  # Clip velocities
 
