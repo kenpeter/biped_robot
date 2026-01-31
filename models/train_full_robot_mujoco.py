@@ -216,28 +216,30 @@ class HumanoidEnv(gym.Env):
         return obs, reward, terminated, truncated, {}
 
     def _get_reward(self, action):
-        """Calculate reward - v7 ANTI-HOP (Human-like walking).
+        """Calculate reward - v9 (v7 philosophy + 42cm robot dimensions).
 
-        Built on v6 MINIMAL but tuned to eliminate slight hopping:
-        - Increased foot switch reward (5.0 → 8.0) - make walking MORE attractive
-        - Reduced forward velocity (1.0 → 0.5) - less rushing, smoother gait
-        - Added ground contact bonus (+0.3) - reward foot on ground (anti-hop)
+        PHILOSOPHY (from v7 - the version that worked):
+        - "Reward what you want, ignore what you don't"
+        - NO penalties, only positive rewards
+        - High foot switch bonus to make walking MORE attractive than hopping
+        - Low forward velocity to prevent rushing/hopping
+        - Ground contact bonus for anti-hop
 
-        Based on the principle: "Reward what you want, ignore what you don't."
+        Scaled for 42cm robot (60% of original 70cm robot).
         """
-        reward = 0.0
-
         torso_z = self.mj_data.qpos[2]
         torso_quat = self.mj_data.qpos[3:7]
         forward_vel = self.mj_data.qvel[0]
 
+        reward = 0.0
+
         # Get foot contacts
         right_foot_z = self.mj_data.xpos[self._get_body_id("right_foot")][2]
         left_foot_z = self.mj_data.xpos[self._get_body_id("left_foot")][2]
-        right_contact = right_foot_z < 0.05
-        left_contact = left_foot_z < 0.05
+        right_contact = right_foot_z < 0.02  # Foot height is 2cm
+        left_contact = left_foot_z < 0.02
 
-        # Track stance leg for switching detection
+        # ========== FOOT SWITCHING (THE KEY TO WALKING) ==========
         single_stance = (right_contact and not left_contact) or (left_contact and not right_contact)
         if single_stance:
             current_stance = 'right' if right_contact else 'left'
@@ -246,7 +248,7 @@ class HumanoidEnv(gym.Env):
                 self.steps_on_same_leg = 0
             elif self.stance_leg != current_stance:
                 # FOOT SWITCHED! Big reward!
-                reward += 8.0  # v7: Increased from 5.0 to make walking MORE attractive than hopping
+                reward += 8.0  # v7: High reward makes walking MORE attractive than hopping
                 self.stance_leg = current_stance
                 self.total_foot_switches += 1
                 self.steps_on_same_leg = 0
@@ -263,18 +265,19 @@ class HumanoidEnv(gym.Env):
         upright = torso_quat[0] ** 2  # 1.0 when perfectly upright
         reward += 2.0 * upright
 
-        # 2. Move forward (weight: 0.5) - Secondary goal (v7: reduced from 1.0 to discourage rushing/hopping)
+        # 2. Move forward (weight: 0.5) - Secondary goal (LOW to prevent rushing/hopping)
         reward += 0.5 * np.clip(forward_vel, 0, 1.0)
 
         # 3. Maintain height (weight: 0.5) - Bonus for staying up
-        height_bonus = 1.0 - abs(torso_z - 0.28)  # Max 1.0 at perfect height (42cm robot)
+        # Scaled: target height 0.28m for 42cm robot (was 0.42m for 70cm robot)
+        height_bonus = 1.0 - abs(torso_z - 0.28)  # Max 1.0 at perfect height
         reward += 0.5 * np.clip(height_bonus, 0, 1.0)
 
-        # v7 improvements over v6:
-        # - Foot switch +8.0 (was +5.0) = walking is MORE rewarding than hopping
-        # - Forward vel +0.5 (was +1.0) = less rushing, smoother gait
-        # - Ground contact +0.3 = direct anti-hop incentive
-        # Result: Human-like walking instead of hop-walking!
+        # That's it! No penalties, no complex gating.
+        # Robot will naturally discover:
+        # - Falling = lose upright reward
+        # - Hopping on one leg = unstable = fall eventually
+        # - Switching feet = get +8.0 bonus + stay up longer = WIN!
 
         return reward
 

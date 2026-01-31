@@ -106,7 +106,8 @@
               <body name="right_foot" pos="0 0 0">
                 <!-- Servo 8: Ankle pitch (fwd/back) -->
                 <joint name="right_ankle_pitch" type="hinge" axis="0 1 0" range="-45 45"/>
-                <geom name="right_foot_geom" type="box" size="0.03 0.06 0.02" pos="0.01 0 -0.02" rgba="0.5 0.2 0.2 1" mass="0.5"/>
+                <geom name="right_foot_geom" type="box" size="0.015 0.03 0.01" pos="0 0 -0.01" rgba="0.5 0.2 0.2 1" mass="0.3"/>
+                <!-- Foot: 3cm wide (X) × 6cm long (Y) × 2cm tall (Z) -->
                 <site name="right_foot_site" pos="0 0 -0.02"/>
               </body>
             </body>
@@ -138,7 +139,8 @@
               <body name="left_foot" pos="0 0 0">
                 <!-- Servo 19: Ankle pitch (fwd/back) -->
                 <joint name="left_ankle_pitch" type="hinge" axis="0 1 0" range="-45 45"/>
-                <geom name="left_foot_geom" type="box" size="0.03 0.06 0.02" pos="0.01 0 -0.02" rgba="0.5 0.2 0.2 1" mass="0.5"/>
+                <geom name="left_foot_geom" type="box" size="0.015 0.03 0.01" pos="0 0 -0.01" rgba="0.5 0.2 0.2 1" mass="0.3"/>
+                <!-- Foot: 3cm wide (X) × 6cm long (Y) × 2cm tall (Z) -->
                 <site name="left_foot_site" pos="0 0 -0.02"/>
               </body>
             </body>
