@@ -192,6 +192,10 @@ class HumanoidEnv(gym.Env):
     def step(self, action):
         """Take a step."""
         action = np.clip(action, -1, 1)
+
+        # FREEZE UPPER BODY: zero out head (0) and arms (1-6)
+        action[0:7] = 0.0
+
         self.mj_data.ctrl[:] = action
 
         # Step simulation
@@ -265,27 +269,24 @@ class HumanoidEnv(gym.Env):
         upright = torso_quat[0] ** 2  # 1.0 when perfectly upright
         reward += 2.0 * upright
 
-        # 2. Move forward (weight: 0.5) - Secondary goal (LOW to prevent rushing/hopping)
-        reward += 0.5 * np.clip(forward_vel, 0, 1.0)
+        # 2. Move forward (weight: 2.0) - INCREASED! Must move to get reward
+        reward += 2.0 * np.clip(forward_vel, 0, 1.0)
 
         # 3. Maintain height (weight: 0.5) - Bonus for staying up
         # Target height 0.29m (pelvis center when standing)
         height_bonus = 1.0 - abs(torso_z - 0.29)  # Max 1.0 at perfect height
         reward += 0.5 * np.clip(height_bonus, 0, 1.0)
 
-        # ========== UPPER BODY STABILITY ==========
-        # Penalize excessive upper body movement (head + arms)
-        # Allows natural arm swing but prevents wild flailing for reward hacking
-        # Upper body actions are indices 0-6 (head=0, right_arm=1-3, left_arm=4-6)
-        upper_body_actions = action[0:7]  # head + both arms
-        upper_body_penalty = np.sum(upper_body_actions ** 2)  # L2 penalty
-        reward -= 0.3 * upper_body_penalty  # Small penalty weight
+        # ========== ANTI-STANDING-STILL ==========
+        # Penalty for not moving - robot MUST move forward to avoid penalty
+        if forward_vel < 0.1:
+            reward -= 1.0  # Penalty for standing still
 
-        # Robot will naturally discover:
-        # - Falling = lose upright reward
-        # - Hopping on one leg = unstable = fall eventually
-        # - Switching feet = get +8.0 bonus + stay up longer = WIN!
-        # - Wild arm flailing = penalty, calm arms = better reward
+        # Upper body is FROZEN (zeroed in step function)
+        # Robot will discover:
+        # - Standing still = -1.0 penalty per step = BAD
+        # - Moving forward = +2.0 reward = GOOD
+        # - Switching feet = +8.0 bonus + stay up longer = WIN!
 
         return reward
 
