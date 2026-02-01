@@ -219,17 +219,46 @@ class HumanoidEnv(gym.Env):
 
         return obs, reward, terminated, truncated, {}
 
+    def _get_reference_pose(self):
+        """Get target joint angles from simple sine wave gait.
+
+        This is the PROVEN approach - give robot a walking pattern to track.
+        """
+        phase = self.gait_phase
+
+        # Target angles for legs (in radians)
+        # Leg indices (after upper body freeze): 7-14 map to actual joints
+        # Right leg: hip_roll(7), hip_pitch(8), knee(9), ankle(10)
+        # Left leg:  hip_roll(11), hip_pitch(12), knee(13), ankle(14)
+
+        target = np.zeros(15)
+
+        # Walking parameters
+        hip_swing = 0.4      # Hip pitch amplitude (radians, ~23 degrees)
+        knee_bend = 0.5      # Knee bend amplitude (radians, ~29 degrees)
+        ankle_swing = 0.2    # Ankle pitch amplitude
+
+        # Right leg (phase = 0 means right leg forward)
+        target[8] = hip_swing * np.sin(phase)           # right hip pitch
+        target[9] = knee_bend * (1 - np.cos(phase)) / 2  # right knee (always positive)
+        target[10] = ankle_swing * np.sin(phase)         # right ankle
+
+        # Left leg (opposite phase)
+        target[12] = hip_swing * np.sin(phase + np.pi)   # left hip pitch
+        target[13] = knee_bend * (1 - np.cos(phase + np.pi)) / 2  # left knee
+        target[14] = ankle_swing * np.sin(phase + np.pi) # left ankle
+
+        return target
+
     def _get_reward(self, action):
-        """Calculate reward - v9 (v7 philosophy + 42cm robot dimensions).
+        """Calculate reward - REFERENCE TRACKING approach.
 
-        PHILOSOPHY (from v7 - the version that worked):
-        - "Reward what you want, ignore what you don't"
-        - NO penalties, only positive rewards
-        - High foot switch bonus to make walking MORE attractive than hopping
-        - Low forward velocity to prevent rushing/hopping
-        - Ground contact bonus for anti-hop
+        The SIMPLEST proven method:
+        1. Define a walking pattern (sine waves)
+        2. Reward tracking that pattern
+        3. Add small bonuses for forward motion and staying up
 
-        Scaled for 42cm robot (60% of original 70cm robot).
+        No complex reward hacking possible - just follow the reference!
         """
         torso_z = self.mj_data.qpos[2]
         torso_quat = self.mj_data.qpos[3:7]
@@ -237,56 +266,30 @@ class HumanoidEnv(gym.Env):
 
         reward = 0.0
 
-        # Get foot contacts
-        right_foot_z = self.mj_data.xpos[self._get_body_id("right_foot")][2]
-        left_foot_z = self.mj_data.xpos[self._get_body_id("left_foot")][2]
-        right_contact = right_foot_z < 0.02  # Foot height is 2cm
-        left_contact = left_foot_z < 0.02
+        # ========== 1. REFERENCE TRACKING (MAIN REWARD) ==========
+        # Get current joint positions (skip freejoint, indices 7+)
+        current_joints = self.mj_data.qpos[7:22]  # 15 joints
+        target_joints = self._get_reference_pose()
 
-        # ========== FOOT SWITCHING (THE KEY TO WALKING) ==========
-        single_stance = (right_contact and not left_contact) or (left_contact and not right_contact)
-        if single_stance:
-            current_stance = 'right' if right_contact else 'left'
-            if self.stance_leg is None:
-                self.stance_leg = current_stance
-                self.steps_on_same_leg = 0
-            elif self.stance_leg != current_stance:
-                # FOOT SWITCHED! Big reward!
-                reward += 8.0  # v7: High reward makes walking MORE attractive than hopping
-                self.stance_leg = current_stance
-                self.total_foot_switches += 1
-                self.steps_on_same_leg = 0
-            else:
-                self.steps_on_same_leg += 1
+        # Reward for matching reference (only legs matter, upper body frozen)
+        leg_joints_current = current_joints[7:15]  # legs only
+        leg_joints_target = target_joints[7:15]
 
-        # v7: Ground contact bonus (anti-hop) - reward having foot on ground
-        if right_contact or left_contact:
-            reward += 0.3  # Small bonus for foot on ground
+        tracking_error = np.sum((leg_joints_current - leg_joints_target) ** 2)
+        tracking_reward = np.exp(-2.0 * tracking_error)  # 1.0 when perfect, decays with error
+        reward += 5.0 * tracking_reward  # Main reward!
 
-        # ========== ONLY 3 SIMPLE REWARDS ==========
+        # ========== 2. STAY ALIVE BONUS ==========
+        # Small reward for staying upright
+        upright = torso_quat[0] ** 2
+        reward += 1.0 * upright
 
-        # 1. Stay upright (weight: 2.0) - Most important!
-        upright = torso_quat[0] ** 2  # 1.0 when perfectly upright
-        reward += 2.0 * upright
+        # ========== 3. FORWARD PROGRESS ==========
+        reward += 1.0 * np.clip(forward_vel, 0, 0.5)
 
-        # 2. Move forward (weight: 2.0) - INCREASED! Must move to get reward
-        reward += 2.0 * np.clip(forward_vel, 0, 1.0)
-
-        # 3. Maintain height (weight: 0.5) - Bonus for staying up
-        # Target height 0.29m (pelvis center when standing)
-        height_bonus = 1.0 - abs(torso_z - 0.29)  # Max 1.0 at perfect height
-        reward += 0.5 * np.clip(height_bonus, 0, 1.0)
-
-        # ========== ANTI-STANDING-STILL ==========
-        # Penalty for not moving - robot MUST move forward to avoid penalty
-        if forward_vel < 0.1:
-            reward -= 1.0  # Penalty for standing still
-
-        # Upper body is FROZEN (zeroed in step function)
-        # Robot will discover:
-        # - Standing still = -1.0 penalty per step = BAD
-        # - Moving forward = +2.0 reward = GOOD
-        # - Switching feet = +8.0 bonus + stay up longer = WIN!
+        # ========== 4. HEIGHT MAINTENANCE ==========
+        if torso_z > 0.24:  # Above sitting height
+            reward += 0.5
 
         return reward
 
@@ -295,12 +298,12 @@ class HumanoidEnv(gym.Env):
         torso_z = self.mj_data.qpos[2]
         torso_quat = self.mj_data.qpos[3:7]
 
-        # Fell down
-        if torso_z < 0.15:  # Fallen threshold (scaled for 42cm robot)
+        # Fell down - RAISED threshold to prevent sitting exploit
+        if torso_z < 0.22:  # Must stay standing (was 0.15, allowed sitting)
             return True
 
         # Too tilted
-        if abs(torso_quat[0]) < 0.5:
+        if abs(torso_quat[0]) < 0.7:  # Stricter upright requirement
             return True
 
         return False
