@@ -68,14 +68,17 @@ class WalkingEnv:
         self.obs_dim = 8 + 8 + 4 + 6  # 26
         self.act_dim = 8  # 8 joint motors
 
-        # Initial standing pose (slightly bent knees for stability)
+        # Initial standing pose with human-like bent knees
         self.init_qpos = np.zeros(self.model.nq)
         # freejoint: 7 DOF (3 pos + 4 quat), then 8 joint angles
-        self.init_qpos[2] = 0.55  # torso height
+        self.init_qpos[2] = 0.50  # torso height (lower due to bent knees)
         self.init_qpos[3] = 1.0   # quaternion w
-        # Slight knee bend for stability
-        self.init_qpos[7 + 2] = np.radians(10)  # right knee
-        self.init_qpos[7 + 6] = np.radians(10)  # left knee
+        # Human-like stance: knees bent ~20-30 degrees
+        self.init_qpos[7 + 2] = np.radians(25)  # right knee
+        self.init_qpos[7 + 6] = np.radians(25)  # left knee
+        # Slight hip pitch to compensate for knee bend
+        self.init_qpos[7 + 1] = np.radians(-10)  # right hip pitch
+        self.init_qpos[7 + 5] = np.radians(-10)  # left hip pitch
 
         self.step_count = 0
 
@@ -151,20 +154,66 @@ class WalkingEnv:
         upright_reward = 1.0 if torso_z > 0.4 else -1.0
         reward += upright_reward
 
-        # Energy penalty (encourage efficient movement)
-        ctrl_cost = 0.01 * np.sum(np.square(self.data.ctrl))
+        # Energy penalty (encourage efficient movement) - reduced to allow knee bending
+        ctrl_cost = 0.005 * np.sum(np.square(self.data.ctrl))
         reward -= ctrl_cost
 
         # Lateral velocity penalty (walk straight)
         lateral_vel = abs(self.data.qvel[1])
         reward -= 0.5 * lateral_vel
 
-        # Foot contact alternation bonus
-        # (encourage alternating foot contacts for walking gait)
+        # Foot heights for gait analysis
         right_foot_height = self.data.xpos[self._get_body_id("right_foot")][2]
         left_foot_height = self.data.xpos[self._get_body_id("left_foot")][2]
+
+        # Foot contact alternation bonus
         height_diff = abs(right_foot_height - left_foot_height)
-        reward += 0.5 * height_diff  # Reward when feet at different heights
+        reward += 0.5 * height_diff
+
+        # === HUMAN-LIKE GAIT REWARDS ===
+
+        # Get knee angles (indices: right_knee=2, left_knee=6 in joint space)
+        right_knee_angle = self.data.qpos[7 + 2]  # radians
+        left_knee_angle = self.data.qpos[7 + 6]   # radians
+
+        # Swing leg detection threshold
+        swing_threshold = 0.02  # 2cm height difference
+
+        # Reward knee bend during swing phase (when foot is lifted)
+        if right_foot_height > left_foot_height + swing_threshold:
+            # Right leg is swinging - reward knee bend
+            reward += 0.8 * right_knee_angle  # More bend = more reward
+        elif left_foot_height > right_foot_height + swing_threshold:
+            # Left leg is swinging - reward knee bend
+            reward += 0.8 * left_knee_angle
+
+        # Ground clearance reward - swing foot should lift adequately
+        min_clearance = 0.03  # 3cm minimum clearance desired
+        if right_foot_height > left_foot_height + swing_threshold:
+            clearance = right_foot_height - 0.02  # Ground is ~0.02
+            if clearance > min_clearance:
+                reward += 0.5 * min(clearance, 0.1)  # Cap reward
+        elif left_foot_height > right_foot_height + swing_threshold:
+            clearance = left_foot_height - 0.02
+            if clearance > min_clearance:
+                reward += 0.5 * min(clearance, 0.1)
+
+        # Penalize dragging feet (both feet too low during movement)
+        if forward_vel > 0.1:  # Only when moving forward
+            max_foot_height = max(right_foot_height, left_foot_height)
+            if max_foot_height < 0.04:  # Both feet dragging
+                reward -= 0.5
+
+        # Symmetric gait reward - knees should have similar max bend over time
+        knee_symmetry = 1.0 - abs(right_knee_angle - left_knee_angle) * 0.5
+        reward += 0.2 * max(0, knee_symmetry)
+
+        # Step length reward - encourage adequate stride
+        right_foot_x = self.data.xpos[self._get_body_id("right_foot")][0]
+        left_foot_x = self.data.xpos[self._get_body_id("left_foot")][0]
+        step_length = abs(right_foot_x - left_foot_x)
+        if 0.05 < step_length < 0.25:  # Reasonable step length
+            reward += 0.3 * step_length
 
         return reward
 
@@ -317,7 +366,7 @@ class SimplePolicy:
 class EvolutionStrategy:
     """Simple Evolution Strategy for policy optimization."""
 
-    def __init__(self, policy, population_size=50, sigma=0.1, learning_rate=0.03):
+    def __init__(self, policy, population_size=80, sigma=0.08, learning_rate=0.02):
         self.policy = policy
         self.population_size = population_size
         self.sigma = sigma
