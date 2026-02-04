@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Train biped walking using MuJoCo simulation.
+"""Train biped walking using MuJoCo simulation with PPO.
 
 Trains servos 4,5,6,7 (right leg) and 15,16,17,18 (left leg) to walk.
-Uses PPO-style reinforcement learning.
+Uses PPO (Proximal Policy Optimization) for better learning.
 
 Usage:
-  python3 train_walking_mujoco.py              # with viewer
+  python3 train_walking_mujoco.py              # train with viewer
   python3 train_walking_mujoco.py --headless   # headless training
   python3 train_walking_mujoco.py --test       # test saved policy
+  python3 train_walking_mujoco.py --resume     # resume training
 """
 
 import numpy as np
+import gymnasium as gym
+from gymnasium import spaces
 import json
 import sys
 import os
@@ -18,23 +21,21 @@ import os
 try:
     import mujoco
 except ImportError:
-    print("MuJoCo not installed. Install with:")
-    print("  pip install mujoco")
+    print("MuJoCo not installed: pip install mujoco")
+    exit(1)
+
+try:
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
+    from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+except ImportError:
+    print("stable-baselines3 not installed: pip install stable-baselines3")
     exit(1)
 
 # Servo mapping
-# Right leg: 4=hip_roll, 5=hip_pitch, 6=knee, 7=ankle_roll
-# Left leg: 15=hip_roll, 16=hip_pitch, 17=knee, 18=ankle_roll
-
 SERVO_TO_JOINT = {
-    4: 0,   # right_hip_roll
-    5: 1,   # right_hip_pitch
-    6: 2,   # right_knee
-    7: 3,   # right_ankle_roll
-    15: 4,  # left_hip_roll
-    16: 5,  # left_hip_pitch
-    17: 6,  # left_knee
-    18: 7,  # left_ankle_roll
+    4: 0, 5: 1, 6: 2, 7: 3,      # right leg
+    15: 4, 16: 5, 17: 6, 18: 7,  # left leg
 }
 
 JOINT_NAMES = [
@@ -42,131 +43,115 @@ JOINT_NAMES = [
     "left_hip_roll", "left_hip_pitch", "left_knee", "left_ankle_roll"
 ]
 
-# Get the script directory to make paths portable
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(SCRIPT_DIR, 'biped_legs_robot.xml')
-POLICY_PATH = os.path.join(SCRIPT_DIR, 'walking_policy.json')
+PPO_MODEL_PATH = os.path.join(SCRIPT_DIR, 'walking_ppo_model')
 TIMING_PATH = os.path.join(SCRIPT_DIR, 'walking_timing.json')
 
 
-class WalkingEnv:
-    """MuJoCo environment for biped walking."""
+class WalkingEnv(gym.Env):
+    """Gymnasium environment for biped walking with human-like gait."""
 
-    def __init__(self, render=False):
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 50}
+
+    def __init__(self, render_mode=None):
+        super().__init__()
+
         self.model = mujoco.MjModel.from_xml_path(MODEL_PATH)
         self.data = mujoco.MjData(self.model)
-        self.render_mode = render
+        self.render_mode = render_mode
         self.viewer = None
 
-        # Environment parameters
+        # Timing
         self.dt = self.model.opt.timestep
-        self.frame_skip = 5  # Control frequency
+        self.frame_skip = 5
         self.max_episode_steps = 1000
-
-        # State/action dimensions
-        # State: joint positions (8) + joint velocities (8) + torso orientation (4) + torso velocity (6)
-        self.obs_dim = 8 + 8 + 4 + 6  # 26
-        self.act_dim = 8  # 8 joint motors
-
-        # Initial standing pose with human-like bent knees
-        self.init_qpos = np.zeros(self.model.nq)
-        # freejoint: 7 DOF (3 pos + 4 quat), then 8 joint angles
-        self.init_qpos[2] = 0.48  # torso height (lower due to more bent knees)
-        self.init_qpos[3] = 1.0   # quaternion w
-        # Human-like stance: knees bent ~30-35 degrees (more bent start)
-        self.init_qpos[7 + 2] = np.radians(35)  # right knee
-        self.init_qpos[7 + 6] = np.radians(35)  # left knee
-        # Hip pitch to compensate for knee bend
-        self.init_qpos[7 + 1] = np.radians(-15)  # right hip pitch
-        self.init_qpos[7 + 5] = np.radians(-15)  # left hip pitch
-
         self.step_count = 0
 
-        # Gait phase tracking (0 to 2*pi = one full cycle)
+        # Gait phase tracking
         self.gait_phase = 0.0
-        self.gait_freq = 1.5  # Hz - steps per second
+        self.gait_freq = 1.2  # Hz
+
+        # Action space: 8 joint torques [-1, 1]
+        self.action_space = spaces.Box(low=-1, high=1, shape=(8,), dtype=np.float32)
+
+        # Observation: joint pos(8) + vel(8) + quat(4) + torso_vel(6) + phase(2) + target(8) = 36
+        self.observation_space = spaces.Box(
+            low=-np.inf, high=np.inf, shape=(36,), dtype=np.float32
+        )
+
+        # Initial pose with bent knees
+        self.init_qpos = np.zeros(self.model.nq)
+        self.init_qpos[2] = 0.48
+        self.init_qpos[3] = 1.0
+        self.init_qpos[7 + 2] = np.radians(30)  # right knee
+        self.init_qpos[7 + 6] = np.radians(30)  # left knee
+        self.init_qpos[7 + 1] = np.radians(-12)
+        self.init_qpos[7 + 5] = np.radians(-12)
 
     def _get_target_pose(self, phase):
-        """Get target joint angles for given gait phase.
+        """Human-like gait reference - knees MUST bend during swing."""
+        def swing_knee(p):
+            return np.radians(50) * np.sin(p)  # Peak 50° at mid-swing
 
-        Human-like gait reference trajectory.
-        Phase 0-pi: right leg swing, left leg stance
-        Phase pi-2pi: left leg swing, right leg stance
-        """
-        # Knee bend profile: max bend at mid-swing
-        def swing_knee(p):  # p in [0, pi]
-            # Peak at p=pi/2, ~50 degrees
-            return np.radians(50) * np.sin(p)
+        def stance_knee(p):
+            return np.radians(12)
 
-        def stance_knee(p):  # slight bend throughout
-            return np.radians(15)
+        def swing_hip(p):
+            return np.radians(-20 + 35 * (p / np.pi))
 
-        # Hip pitch profile
-        def swing_hip(p):  # forward during swing
-            return np.radians(-25 + 40 * (p / np.pi))  # -25 to +15
-
-        def stance_hip(p):  # backward during stance
-            return np.radians(15 - 30 * (p / np.pi))  # +15 to -15
+        def stance_hip(p):
+            return np.radians(15 - 25 * (p / np.pi))
 
         targets = np.zeros(8)
 
         if phase < np.pi:
-            # Right leg swinging, left leg stance
             p = phase
-            targets[1] = swing_hip(p)      # right hip pitch
-            targets[2] = swing_knee(p)     # right knee - BEND!
-            targets[5] = stance_hip(p)     # left hip pitch
-            targets[6] = stance_knee(p)    # left knee
+            targets[1] = swing_hip(p)
+            targets[2] = swing_knee(p)  # RIGHT KNEE BENDS
+            targets[5] = stance_hip(p)
+            targets[6] = stance_knee(p)
         else:
-            # Left leg swinging, right leg stance
             p = phase - np.pi
-            targets[1] = stance_hip(p)     # right hip pitch
-            targets[2] = stance_knee(p)    # right knee
-            targets[5] = swing_hip(p)      # left hip pitch
-            targets[6] = swing_knee(p)     # left knee - BEND!
+            targets[1] = stance_hip(p)
+            targets[2] = stance_knee(p)
+            targets[5] = swing_hip(p)
+            targets[6] = swing_knee(p)  # LEFT KNEE BENDS
 
         return targets
 
-    def reset(self):
-        """Reset environment to initial state."""
-        mujoco.mj_resetData(self.model, self.data)
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
 
-        # Set initial pose with small random perturbation
-        self.data.qpos[:] = self.init_qpos + np.random.uniform(-0.01, 0.01, self.model.nq)
-        self.data.qvel[:] = np.random.uniform(-0.01, 0.01, self.model.nv)
+        mujoco.mj_resetData(self.model, self.data)
+        self.data.qpos[:] = self.init_qpos + self.np_random.uniform(-0.02, 0.02, self.model.nq)
+        self.data.qvel[:] = self.np_random.uniform(-0.05, 0.05, self.model.nv)
 
         mujoco.mj_forward(self.model, self.data)
         self.step_count = 0
         self.gait_phase = 0.0
 
-        return self._get_obs()
+        return self._get_obs(), {}
 
     def _get_obs(self):
-        """Get observation vector."""
-        # Joint positions (8 leg joints, skip freejoint)
         joint_pos = self.data.qpos[7:15].copy()
-
-        # Joint velocities (8 leg joints, skip freejoint)
-        joint_vel = self.data.qvel[6:14].copy()
-
-        # Torso orientation (quaternion)
+        joint_vel = np.clip(self.data.qvel[6:14].copy(), -10, 10)
         torso_quat = self.data.qpos[3:7].copy()
+        torso_vel = np.clip(self.data.qvel[0:6].copy(), -10, 10)
 
-        # Torso velocity (linear + angular)
-        torso_vel = self.data.qvel[0:6].copy()
+        # Phase as sin/cos for smooth representation
+        phase_obs = np.array([np.sin(self.gait_phase), np.cos(self.gait_phase)])
 
-        obs = np.concatenate([joint_pos, joint_vel, torso_quat, torso_vel])
+        # Target pose - policy sees what it should do
+        target_pose = self._get_target_pose(self.gait_phase)
+
+        obs = np.concatenate([joint_pos, joint_vel, torso_quat, torso_vel, phase_obs, target_pose])
         return obs.astype(np.float32)
 
     def step(self, action):
-        """Take a step in the environment."""
-        # Clip actions to valid range
         action = np.clip(action, -1, 1)
-
-        # Apply action to motors
         self.data.ctrl[:] = action
 
-        # Step simulation
         for _ in range(self.frame_skip):
             mujoco.mj_step(self.model, self.data)
 
@@ -177,405 +162,213 @@ class WalkingEnv:
         self.gait_phase += 2 * np.pi * self.gait_freq * dt
         self.gait_phase = self.gait_phase % (2 * np.pi)
 
-        # Get observation
         obs = self._get_obs()
-
-        # Calculate reward
         reward = self._get_reward()
+        terminated = self._is_terminated()
+        truncated = self.step_count >= self.max_episode_steps
 
-        # Check termination
-        done = self._is_done()
+        if self.render_mode == "human":
+            self.render()
 
-        # Render if needed
-        if self.render_mode and self.viewer is not None:
-            self.viewer.sync()
-
-        return obs, reward, done, {}
+        return obs, reward, terminated, truncated, {}
 
     def _get_reward(self):
-        """Calculate reward - TRAJECTORY TRACKING is PRIMARY."""
+        """Reward: trajectory tracking (especially knees) + forward progress."""
         reward = 0.0
 
-        # Get current joint positions (8 joints)
         current_pos = self.data.qpos[7:15].copy()
-
-        # Get target pose from reference trajectory
         target_pos = self._get_target_pose(self.gait_phase)
 
-        # === PRIMARY REWARD: TRAJECTORY TRACKING ===
-        # Especially for knees (indices 2 and 6)
-        joint_weights = np.array([
-            0.5,   # right_hip_roll
-            1.0,   # right_hip_pitch
-            3.0,   # right_knee - HIGHEST WEIGHT!
-            0.3,   # right_ankle_roll
-            0.5,   # left_hip_roll
-            1.0,   # left_hip_pitch
-            3.0,   # left_knee - HIGHEST WEIGHT!
-            0.3,   # left_ankle_roll
-        ])
-
-        # Tracking error (weighted)
+        # === TRAJECTORY TRACKING (primary) ===
+        # Knees get 5x weight - MUST follow reference
+        joint_weights = np.array([0.5, 1.0, 5.0, 0.3, 0.5, 1.0, 5.0, 0.3])
         tracking_error = np.sum(joint_weights * np.square(current_pos - target_pos))
-        tracking_reward = 5.0 * np.exp(-2.0 * tracking_error)  # Max 5.0 when perfect
+        tracking_reward = 4.0 * np.exp(-1.5 * tracking_error)
         reward += tracking_reward
 
-        # === KNEE TRACKING BONUS (extra emphasis) ===
+        # === KNEE TRACKING BONUS ===
         right_knee_error = abs(current_pos[2] - target_pos[2])
         left_knee_error = abs(current_pos[6] - target_pos[6])
 
-        # Bonus for good knee tracking
-        if right_knee_error < np.radians(10):
+        if right_knee_error < np.radians(8):
             reward += 1.0
-        if left_knee_error < np.radians(10):
+        if left_knee_error < np.radians(8):
             reward += 1.0
+        if right_knee_error > np.radians(25):
+            reward -= 1.5
+        if left_knee_error > np.radians(25):
+            reward -= 1.5
 
-        # Penalty for bad knee tracking
-        if right_knee_error > np.radians(30):
-            reward -= 2.0
-        if left_knee_error > np.radians(30):
-            reward -= 2.0
-
-        # === SECONDARY: Forward progress ===
+        # === FORWARD VELOCITY ===
         forward_vel = self.data.qvel[0]
-        reward += 1.0 * forward_vel
+        reward += 1.5 * np.clip(forward_vel, -0.5, 1.0)
 
         # === STABILITY ===
         torso_z = self.data.qpos[2]
-        if torso_z > 0.35:
-            reward += 0.5
+        torso_quat = self.data.qpos[3:7]
+
+        if torso_z > 0.38:
+            reward += 0.3
         else:
-            reward -= 2.0
+            reward -= 1.5
 
-        # Lateral penalty
+        # Upright bonus
+        reward += 0.5 * torso_quat[0]
+
+        # === PENALTIES ===
         lateral_vel = abs(self.data.qvel[1])
-        reward -= 0.3 * lateral_vel
+        reward -= 0.2 * lateral_vel
 
-        # Energy (minimal)
-        ctrl_cost = 0.0005 * np.sum(np.square(self.data.ctrl))
+        angular_vel = abs(self.data.qvel[5])
+        reward -= 0.1 * angular_vel
+
+        ctrl_cost = 0.0002 * np.sum(np.square(self.data.ctrl))
         reward -= ctrl_cost
 
         return reward
 
-    def _get_body_id(self, name):
-        """Get body ID by name."""
-        return mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, name)
-
-    def _is_done(self):
-        """Check if episode is done."""
-        # Fallen over
+    def _is_terminated(self):
         torso_z = self.data.qpos[2]
         if torso_z < 0.25:
             return True
 
-        # Too tilted
         torso_quat = self.data.qpos[3:7]
-        # Simple tilt check: w component of quaternion should be close to 1
-        if abs(torso_quat[0]) < 0.7:
-            return True
-
-        # Max steps reached
-        if self.step_count >= self.max_episode_steps:
+        if abs(torso_quat[0]) < 0.6:
             return True
 
         return False
 
     def render(self):
-        """Render the environment."""
-        if self.viewer is None:
-            try:
+        if self.render_mode == "human":
+            if self.viewer is None:
                 import mujoco.viewer
                 self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
-            except:
-                print("Could not create viewer")
-                self.render_mode = False
+            self.viewer.sync()
 
     def close(self):
-        """Close the environment."""
         if self.viewer is not None:
             self.viewer.close()
             self.viewer = None
 
 
-class SimplePolicy:
-    """Simple neural network policy."""
+class ProgressCallback(BaseCallback):
+    """Log training progress."""
 
-    def __init__(self, obs_dim, act_dim, hidden_size=64):
-        self.obs_dim = obs_dim
-        self.act_dim = act_dim
-        self.hidden_size = hidden_size
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+        self.episode_rewards = []
 
-        # Initialize weights with small random values
-        self.w1 = np.random.randn(obs_dim, hidden_size) * 0.1
-        self.b1 = np.zeros(hidden_size)
-        self.w2 = np.random.randn(hidden_size, hidden_size) * 0.1
-        self.b2 = np.zeros(hidden_size)
-        self.w3 = np.random.randn(hidden_size, act_dim) * 0.1
-        self.b3 = np.zeros(act_dim)
-
-        # Log std for action noise
-        self.log_std = np.zeros(act_dim)
-
-    def forward(self, obs):
-        """Forward pass through network."""
-        x = np.tanh(obs @ self.w1 + self.b1)
-        x = np.tanh(x @ self.w2 + self.b2)
-        mean = np.tanh(x @ self.w3 + self.b3)
-        return mean
-
-    def get_action(self, obs, deterministic=False):
-        """Get action from policy."""
-        mean = self.forward(obs)
-        if deterministic:
-            return mean
-        std = np.exp(self.log_std)
-        action = mean + std * np.random.randn(self.act_dim)
-        return np.clip(action, -1, 1)
-
-    def get_params(self):
-        """Get all parameters as flat array."""
-        return np.concatenate([
-            self.w1.flatten(), self.b1,
-            self.w2.flatten(), self.b2,
-            self.w3.flatten(), self.b3,
-            self.log_std
-        ])
-
-    def set_params(self, params):
-        """Set parameters from flat array."""
-        idx = 0
-
-        size = self.obs_dim * self.hidden_size
-        self.w1 = params[idx:idx+size].reshape(self.obs_dim, self.hidden_size)
-        idx += size
-
-        size = self.hidden_size
-        self.b1 = params[idx:idx+size]
-        idx += size
-
-        size = self.hidden_size * self.hidden_size
-        self.w2 = params[idx:idx+size].reshape(self.hidden_size, self.hidden_size)
-        idx += size
-
-        size = self.hidden_size
-        self.b2 = params[idx:idx+size]
-        idx += size
-
-        size = self.hidden_size * self.act_dim
-        self.w3 = params[idx:idx+size].reshape(self.hidden_size, self.act_dim)
-        idx += size
-
-        size = self.act_dim
-        self.b3 = params[idx:idx+size]
-        idx += size
-
-        self.log_std = params[idx:idx+self.act_dim]
-
-    def save(self, path):
-        """Save policy to file."""
-        data = {
-            'obs_dim': self.obs_dim,
-            'act_dim': self.act_dim,
-            'hidden_size': self.hidden_size,
-            'w1': self.w1.tolist(),
-            'b1': self.b1.tolist(),
-            'w2': self.w2.tolist(),
-            'b2': self.b2.tolist(),
-            'w3': self.w3.tolist(),
-            'b3': self.b3.tolist(),
-            'log_std': self.log_std.tolist()
-        }
-        with open(path, 'w') as f:
-            json.dump(data, f, indent=2)
-        print(f"[SAVED] Policy saved to {path}")
-
-    def load(self, path):
-        """Load policy from file."""
-        with open(path, 'r') as f:
-            data = json.load(f)
-        self.w1 = np.array(data['w1'])
-        self.b1 = np.array(data['b1'])
-        self.w2 = np.array(data['w2'])
-        self.b2 = np.array(data['b2'])
-        self.w3 = np.array(data['w3'])
-        self.b3 = np.array(data['b3'])
-        self.log_std = np.array(data['log_std'])
-        print(f"[LOADED] Policy loaded from {path}")
+    def _on_step(self):
+        if len(self.model.ep_info_buffer) > 0:
+            ep_info = self.model.ep_info_buffer[-1]
+            if 'r' in ep_info:
+                self.episode_rewards.append(ep_info['r'])
+                if len(self.episode_rewards) % 20 == 0:
+                    avg = np.mean(self.episode_rewards[-20:])
+                    print(f"Episodes: {len(self.episode_rewards)}, Avg Reward: {avg:.1f}")
+        return True
 
 
-class EvolutionStrategy:
-    """Simple Evolution Strategy for policy optimization."""
-
-    def __init__(self, policy, population_size=100, sigma=0.12, learning_rate=0.03):
-        self.policy = policy
-        self.population_size = population_size
-        self.sigma = sigma
-        self.learning_rate = learning_rate
-        self.best_reward = -float('inf')
-
-    def train_step(self, env):
-        """One training step using ES."""
-        params = self.policy.get_params()
-        n_params = len(params)
-
-        # Generate population
-        noise = np.random.randn(self.population_size, n_params)
-        rewards = np.zeros(self.population_size)
-
-        # Evaluate population
-        for i in range(self.population_size):
-            # Positive perturbation
-            self.policy.set_params(params + self.sigma * noise[i])
-            rewards[i] = self._evaluate(env)
-
-        # Normalize rewards
-        rewards = (rewards - np.mean(rewards)) / (np.std(rewards) + 1e-8)
-
-        # Update params
-        grad = (1.0 / (self.population_size * self.sigma)) * (noise.T @ rewards)
-        new_params = params + self.learning_rate * grad
-        self.policy.set_params(new_params)
-
-        # Evaluate new policy
-        current_reward = self._evaluate(env)
-        if current_reward > self.best_reward:
-            self.best_reward = current_reward
-
-        return current_reward
-
-    def _evaluate(self, env, n_episodes=1):
-        """Evaluate policy."""
-        total_reward = 0
-        for _ in range(n_episodes):
-            obs = env.reset()
-            done = False
-            while not done:
-                action = self.policy.get_action(obs, deterministic=True)
-                obs, reward, done, _ = env.step(action)
-                total_reward += reward
-        return total_reward / n_episodes
+def make_env(render_mode=None):
+    def _init():
+        return WalkingEnv(render_mode=render_mode)
+    return _init
 
 
-def extract_timing(policy, env):
-    """Extract timing parameters from trained policy for deployment."""
-    print("\nExtracting timing parameters for deployment...")
+def train(headless=True, total_timesteps=2_000_000, resume=False):
+    print("=" * 50)
+    print("BIPED WALKING - PPO TRAINING")
+    print("=" * 50)
+    print(f"Timesteps: {total_timesteps:,}")
+    print(f"Mode: {'headless' if headless else 'with viewer'}")
+    print(f"Resume: {resume}")
+    print()
 
-    timing = {
-        'gait_cycle': [],
-        'description': 'Timing for one complete walking cycle'
-    }
+    # Parallel envs for faster training
+    n_envs = 8 if headless else 1
+    render_mode = None if headless else "human"
 
-    # Run policy and record joint trajectories
-    obs = env.reset()
-    positions = []
+    if headless and n_envs > 1:
+        env = SubprocVecEnv([make_env() for _ in range(n_envs)])
+    else:
+        env = DummyVecEnv([make_env(render_mode)])
 
-    for step in range(200):  # One gait cycle worth of data
-        action = policy.get_action(obs, deterministic=True)
-        obs, _, done, _ = env.step(action)
+    # Create or load model
+    if resume and os.path.exists(PPO_MODEL_PATH + ".zip"):
+        print(f"Resuming from {PPO_MODEL_PATH}.zip")
+        model = PPO.load(PPO_MODEL_PATH, env=env)
+    else:
+        print("Creating new PPO model")
+        model = PPO(
+            "MlpPolicy",
+            env,
+            learning_rate=3e-4,
+            n_steps=2048,
+            batch_size=64,
+            n_epochs=10,
+            gamma=0.99,
+            gae_lambda=0.95,
+            clip_range=0.2,
+            ent_coef=0.01,
+            vf_coef=0.5,
+            max_grad_norm=0.5,
+            policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256])),
+            verbose=1,
+            tensorboard_log=os.path.join(SCRIPT_DIR, "walking_tb_logs")
+        )
 
-        # Record joint positions
-        joint_pos = env.data.qpos[7:15].copy()
-        positions.append(joint_pos)
-
-        if done:
-            break
-
-    positions = np.array(positions)
-
-    # Analyze gait pattern
-    for i, name in enumerate(JOINT_NAMES):
-        joint_data = positions[:, i]
-        timing['gait_cycle'].append({
-            'joint': name,
-            'min_angle': float(np.degrees(np.min(joint_data))),
-            'max_angle': float(np.degrees(np.max(joint_data))),
-            'mean_angle': float(np.degrees(np.mean(joint_data)))
-        })
-
-    # Save timing
-    with open(TIMING_PATH, 'w') as f:
-        json.dump(timing, f, indent=2)
-    print(f"[SAVED] Timing saved to {TIMING_PATH}")
-
-    return timing
-
-
-def train(headless=False, episodes=500):
-    """Train the walking policy."""
-    print("="*50)
-    print("BIPED WALKING TRAINING")
-    print("="*50)
-    print(f"\nServos: Right leg (4,5,6,7), Left leg (15,16,17,18)")
-    print(f"Episodes: {episodes}")
-    print(f"Mode: {'headless' if headless else 'with viewer'}\n")
-
-    env = WalkingEnv(render=not headless)
-    policy = SimplePolicy(env.obs_dim, env.act_dim)
-    trainer = EvolutionStrategy(policy)
-
-    if not headless:
-        env.render()
+    checkpoint_cb = CheckpointCallback(
+        save_freq=50000 // n_envs,
+        save_path=SCRIPT_DIR,
+        name_prefix="walking_checkpoint"
+    )
 
     try:
-        for episode in range(episodes):
-            reward = trainer.train_step(env)
-
-            if episode % 10 == 0:
-                print(f"Episode {episode:4d}: Reward = {reward:8.2f}, Best = {trainer.best_reward:8.2f}")
-
-            # Save checkpoint
-            if episode % 100 == 0 and episode > 0:
-                policy.save(POLICY_PATH)
-
+        model.learn(
+            total_timesteps=total_timesteps,
+            callback=[checkpoint_cb, ProgressCallback()],
+            progress_bar=True
+        )
     except KeyboardInterrupt:
         print("\n[INTERRUPTED]")
 
-    # Save final policy
-    policy.save(POLICY_PATH)
-
-    # Extract timing for deployment
-    extract_timing(policy, env)
+    model.save(PPO_MODEL_PATH)
+    print(f"\n[SAVED] {PPO_MODEL_PATH}.zip")
 
     env.close()
-    print("\n[DONE] Training complete!")
 
 
 def test():
-    """Test saved policy."""
-    print("="*50)
+    print("=" * 50)
     print("TESTING WALKING POLICY")
-    print("="*50)
+    print("=" * 50)
 
-    env = WalkingEnv(render=True)
-    policy = SimplePolicy(env.obs_dim, env.act_dim)
-
-    try:
-        policy.load(POLICY_PATH)
-    except FileNotFoundError:
-        print(f"[ERROR] No policy found at {POLICY_PATH}")
-        print("Train first with: python3 train_walking_mujoco.py")
+    if not os.path.exists(PPO_MODEL_PATH + ".zip"):
+        print(f"[ERROR] No model at {PPO_MODEL_PATH}.zip")
+        print("Train first: python3 train_walking_mujoco.py --headless")
         return
 
-    env.render()
+    env = WalkingEnv(render_mode="human")
+    model = PPO.load(PPO_MODEL_PATH)
 
     try:
         for episode in range(10):
-            obs = env.reset()
+            obs, _ = env.reset()
             total_reward = 0
             done = False
             steps = 0
 
             while not done:
-                action = policy.get_action(obs, deterministic=True)
-                obs, reward, done, _ = env.step(action)
+                action, _ = model.predict(obs, deterministic=True)
+                obs, reward, terminated, truncated, _ = env.step(action)
                 total_reward += reward
+                done = terminated or truncated
                 steps += 1
 
-                # Slow down for visualization
                 import time
                 time.sleep(0.01)
 
-            print(f"Episode {episode+1}: Steps = {steps}, Reward = {total_reward:.2f}")
+            print(f"Episode {episode+1}: Steps={steps}, Reward={total_reward:.1f}")
 
     except KeyboardInterrupt:
         print("\n[STOPPED]")
@@ -586,6 +379,9 @@ def test():
 def main():
     if "--test" in sys.argv:
         test()
+    elif "--resume" in sys.argv:
+        headless = "--headless" in sys.argv
+        train(headless=headless, resume=True)
     elif "--headless" in sys.argv:
         train(headless=True)
     else:
