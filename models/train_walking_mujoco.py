@@ -328,18 +328,20 @@ def make_env(render_mode=None):
     return _init
 
 
-def train(headless=True, total_timesteps=3_000_000, resume=False):
+def train(headless=True, total_timesteps=3_000_000, resume=False, n_envs=8):
     print("=" * 50)
     print("WALKING TRAINING (UPPER BODY FROZEN)")
     print("=" * 50)
     print("Upper body: FROZEN (head + arms)")
     print("Training: LEGS ONLY (8 DOF)")
     print(f"Timesteps: {total_timesteps:,}")
+    print(f"Parallel envs: {n_envs}")
     print(f"Mode: {'headless' if headless else 'with viewer'}")
     print(f"Resume: {resume}")
     print()
 
-    n_envs = 8 if headless else 1
+    if not headless:
+        n_envs = 1  # Force 1 env for viewer mode
     render_mode = None if headless else "human"
 
     if headless and n_envs > 1:
@@ -430,15 +432,24 @@ def test():
 
 
 def main():
-    if "--test" in sys.argv:
+    import argparse
+    parser = argparse.ArgumentParser(description="Train walking with PPO")
+    parser.add_argument("--headless", action="store_true", help="Train without viewer")
+    parser.add_argument("--test", action="store_true", help="Test saved policy")
+    parser.add_argument("--resume", action="store_true", help="Resume training")
+    parser.add_argument("--num-envs", type=int, default=8, help="Number of parallel envs")
+    parser.add_argument("--timesteps", type=int, default=3_000_000, help="Total timesteps")
+    args = parser.parse_args()
+
+    if args.test:
         test()
-    elif "--resume" in sys.argv:
-        headless = "--headless" in sys.argv
-        train(headless=headless, resume=True)
-    elif "--headless" in sys.argv:
-        train(headless=True)
     else:
-        train(headless=False)
+        train(
+            headless=args.headless,
+            total_timesteps=args.timesteps,
+            resume=args.resume,
+            n_envs=args.num_envs
+        )
 
 
 if __name__ == "__main__":
