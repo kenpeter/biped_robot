@@ -29,7 +29,7 @@ except ImportError:
 
 try:
     from stable_baselines3 import PPO
-    from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
+    from stable_baselines3.common.callbacks import BaseCallback
     from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 except ImportError:
     print("stable-baselines3 not installed: pip install stable-baselines3")
@@ -372,16 +372,29 @@ def train(headless=True, total_timesteps=3_000_000, resume=False, n_envs=8):
             tensorboard_log=os.path.join(SCRIPT_DIR, "walking_tb_logs")
         )
 
-    checkpoint_cb = CheckpointCallback(
+    class OverwriteSaveCallback(BaseCallback):
+        """Save model to the same file every save_freq steps."""
+        def __init__(self, save_freq, save_path, verbose=0):
+            super().__init__(verbose)
+            self.save_freq = save_freq
+            self.save_path = save_path
+        def _on_step(self):
+            if self.n_calls % self.save_freq == 0:
+                self.model.save(self.save_path)
+                if self.verbose:
+                    print(f"\n[SAVED] {self.save_path}.zip (step {self.num_timesteps})")
+            return True
+
+    save_cb = OverwriteSaveCallback(
         save_freq=50000 // n_envs,
-        save_path=SCRIPT_DIR,
-        name_prefix="walking_checkpoint"
+        save_path=PPO_MODEL_PATH,
+        verbose=1
     )
 
     try:
         model.learn(
             total_timesteps=total_timesteps,
-            callback=[checkpoint_cb, ProgressCallback()],
+            callback=[save_cb, ProgressCallback()],
             progress_bar=True
         )
     except KeyboardInterrupt:
